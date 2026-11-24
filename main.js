@@ -1345,6 +1345,147 @@ function changeRail(name) {
   buildMenu();
 }
 
+/* ---------- Auto-Update (GitHub-Releases) ---------- */
+
+// Stille Suche gegen github.com/luxsy-tech/luxbox (Tag = Version). Voraussetzung
+// ist die publish-Konfiguration in package.json: Sie laesst electron-builder
+// app-update.yml ins Paket legen und beim Bauen latest.yml erzeugen.
+const { autoUpdater } = require('electron-updater');
+
+// 'dev'  = Entwicklungsmodus, es gibt kein app-update.yml
+// 'pkg'  = deb/rpm, das Paketsystem uebernimmt die Aktualisierung
+// 'ok'   = Windows-Installer und AppImage aktualisieren sich selbst
+function updateMode() {
+  if (!app.isPackaged) return 'dev';
+  if (process.platform === 'linux' && !process.env.APPIMAGE) return 'pkg';
+  return 'ok';
+}
+
+let updateDownloaded = null;      // Info zur geladenen Version, solange sie offen ist
+let updateCheckRunning = false;   // keine zwei Suchen gleichzeitig
+let updatePromptShown = false;    // "bereit"-Dialog hoechstens einmal pro Fund
+let pendingInteractive = false;   // die laufende Suche kam aus dem Menue
+let manualDownloadActive = false; // manuell bestaetigter Download laeuft noch
+
+function showUpdateDialog(opts) {
+  if (win && !win.isDestroyed()) return dialog.showMessageBox(win, opts);
+  return dialog.showMessageBox(opts);
+}
+
+function showUpdateError(err) {
+  showUpdateDialog({
+    type: 'error',
+    message: t('update.failed'),
+    detail: String((err && err.message) || err || 'Unknown error'),
+  });
+}
+
+// Einmal geladen: nachfragen, ob sofort neu gestartet wird. Auf "Später"
+// antwortet autoInstallOnAppQuit beim naechsten Beenden mit der Installation.
+function promptUpdateReady() {
+  if (updatePromptShown || !updateDownloaded) return;
+  updatePromptShown = true;
+  manualDownloadActive = false;
+  showUpdateDialog({
+    type: 'info',
+    buttons: [t('update.restart'), t('update.later')],
+    defaultId: 0,
+    cancelId: 1,
+    message: t('update.downloaded'),
+    detail: t('update.downloadedDetail', { version: updateDownloaded.version }),
+  }).then(({ response }) => {
+    if (response === 0) {
+      // still installieren und danach neu starten; bei perMachine fragt
+      // NSIS vorher einmalig nach Administratorrechten (UAC).
+      try { allowQuit = true; } catch {}
+      autoUpdater.quitAndInstall(true, true);
+    }
+  }).catch(() => {});
+}
+
+autoUpdater.autoDownload = true;          // Fund im Hintergrund gleich laden
+autoUpdater.autoInstallOnAppQuit = true;  // "Später" = beim naechsten Beenden
+autoUpdater.allowDowngrade = false;
+// Konsole ruhig halten: infos ausblenden, Warnungen und Fehler behalten
+autoUpdater.logger = {
+  info: () => {}, debug: () => {},
+  warn: (...a) => console.warn('[update]', ...a),
+  error: (...a) => console.error('[update]', ...a),
+};
+
+autoUpdater.on('update-available', (info) => {
+  const interactive = pendingInteractive;
+  pendingInteractive = false;
+  if (interactive) {
+    manualDownloadActive = true;
+    showUpdateDialog({
+      type: 'info',
+      message: t('update.found'),
+      detail: t('update.foundDetail', { version: (info && info.version) || '' }),
+    }).catch(() => {});
+  }
+});
+
+autoUpdater.on('update-not-available', () => {
+  if (!pendingInteractive) return;
+  pendingInteractive = false;
+  showUpdateDialog({
+    type: 'info',
+    message: t('update.none'),
+    detail: t('update.noneDetail', { version: app.getVersion() }),
+  }).catch(() => {});
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  updateDownloaded = info;
+  promptUpdateReady();
+});
+
+autoUpdater.on('error', (err) => {
+  console.warn('[update]', (err && err.message) || err);
+  // Fehler entweder aus der Suche oder aus einem bestaetigten Download melden;
+  // beide Flaggen sind beim ersten Treffer verbraucht, also nie doppelt.
+  if (pendingInteractive) {
+    pendingInteractive = false;
+    manualDownloadActive = false;
+    showUpdateError(err);
+  } else if (manualDownloadActive) {
+    manualDownloadActive = false;
+    showUpdateError(err);
+  }
+});
+
+// menu:checkUpdate (true) meldet auch "kein Update", die stille Suche nicht.
+async function checkForUpdates(interactive) {
+  const mode = updateMode();
+  if (mode !== 'ok') {
+    if (interactive) showUpdateDialog({
+      type: 'info',
+      message: t(mode === 'dev' ? 'update.devMode' : 'update.pkgManager'),
+      detail: t(mode === 'dev' ? 'update.devModeDetail' : 'update.pkgManagerDetail', { version: app.getVersion() }),
+    });
+    return;
+  }
+  if (updateCheckRunning) return;
+  updateCheckRunning = true;
+  pendingInteractive = Boolean(interactive);
+  if (interactive) updatePromptShown = false; // manuelle Suche darf erneut fragen
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (err) {
+    // war der Fehler schon per 'error'-Flag gemeldet, bleibt die Flagge leer
+    if (pendingInteractive) {
+      pendingInteractive = false;
+      manualDownloadActive = false;
+      showUpdateError(err);
+    } else {
+      console.warn('[update]', (err && err.message) || err);
+    }
+  } finally {
+    updateCheckRunning = false;
+  }
+}
+
 // Aktionen fuer die Menues: aufgerufen vom nativen Menue (unsichtbar, haelt die
 // Tastenkuerzel) und von der eigenen Menueleiste im Fenster ueber 'menu:click'.
 const activeViewWc = () => (activeId && views.get(activeId)?.webContents) || null;
@@ -1371,6 +1512,7 @@ const menuActions = {
     saveApps();
   },
   language: (lang) => changeLanguage(lang),
+  checkUpdate: () => checkForUpdates(true),
   theme: (name) => changeTheme(name),
   rail: (pos) => changeRail(pos),
   quit: () => app.quit(),
@@ -1593,6 +1735,7 @@ function buildMenu() {
           ],
         },
         { type: 'separator' },
+        { label: t('menu.checkUpdate'), click: () => checkForUpdates(true) },
         { role: 'quit', label: t('menu.quit') },
       ],
     },
@@ -1796,6 +1939,11 @@ app.whenReady().then(() => {
   try { globalShortcut.register('CommandOrControl+Alt+L', toggleWindow); } catch { /* Hotkey belegt */ }
   setInterval(() => { sweepHibernation(); sweepLock(); sweepAppLocks(); updateAwakeBlocker(); }, 60 * 1000);
   setInterval(() => scheduleSync(0), 5 * 60 * 1000); // Auffangnetz, falls der Ordner-Watcher nichts meldet
+
+  // Auto-Update: einmal still nach neuen Releases suchen - nichts gefunden
+  // kostet keine Meldung, ein Fund meldet sich, sobald das Paket geladen ist.
+  // 60 Sekunden Wartezeit, damit Netzwerk und Config-Sync zuerst Platz haben.
+  setTimeout(() => checkForUpdates(false), 60 * 1000);
 
   // Aktuellen Auto-Start-Zustand über Electrons eingebaute Funktion prüfen
   const isAutoStartEnabled = app.getLoginItemSettings().openAtLogin;

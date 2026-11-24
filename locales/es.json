@@ -255,5 +255,20 @@
   "info.apps": "Apps",
   "info.license": "Licencia",
   "info.folder": "Carpeta de configuración",
-  "info.openFolder": "Abrir carpeta de configuración"
+  "info.openFolder": "Abrir carpeta de configuración",
+
+  "menu.checkUpdate": "Buscar actualizaciones …",
+  "update.none": "No hay una actualización más reciente.",
+  "update.noneDetail": "La versión instalada es {version}.",
+  "update.found": "Actualización disponible",
+  "update.foundDetail": "Se está descargando la versión {version}. El aviso de reinicio llegará cuando todo esté listo.",
+  "update.downloaded": "Actualización lista",
+  "update.downloadedDetail": "La versión {version} se ha descargado. ¿Reiniciar Luxbox ahora para instalarla? Si no, se instalará la próxima vez que salgas.",
+  "update.restart": "Reiniciar ahora",
+  "update.later": "Más tarde",
+  "update.failed": "Error al actualizar",
+  "update.devMode": "No hay actualizaciones en el modo de desarrollo.",
+  "update.devModeDetail": "Versión actual: {version}",
+  "update.pkgManager": "Esta instalación se actualiza a través del sistema de paquetes.",
+  "update.pkgManagerDetail": "Los paquetes deb y RPM no se actualizan automáticamente: usa el gestor de paquetes de tu distribución."
 }

@@ -261,5 +261,20 @@
   "info.apps": "Apps",
   "info.license": "License",
   "info.folder": "Configuration folder",
-  "info.openFolder": "Open configuration folder"
+  "info.openFolder": "Open configuration folder",
+
+  "menu.checkUpdate": "Check for updates …",
+  "update.none": "No newer update available.",
+  "update.noneDetail": "Installed version is {version}.",
+  "update.found": "Update available",
+  "update.foundDetail": "Version {version} is downloading. The restart prompt will follow as soon as everything is ready.",
+  "update.downloaded": "Update ready",
+  "update.downloadedDetail": "Version {version} has been downloaded. Restart Luxbox now to install? Otherwise the update will be installed the next time you quit.",
+  "update.restart": "Restart now",
+  "update.later": "Later",
+  "update.failed": "Update failed",
+  "update.devMode": "Updates are not available in development mode.",
+  "update.devModeDetail": "Current version: {version}",
+  "update.pkgManager": "This installation is updated via the package system.",
+  "update.pkgManagerDetail": "Deb and RPM packages do not update automatically – use the package manager of your distribution."
 }

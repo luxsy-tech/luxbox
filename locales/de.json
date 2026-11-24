@@ -261,5 +261,20 @@
   "info.apps": "Apps",
   "info.license": "Lizenz",
   "info.folder": "Konfigurationsordner",
-  "info.openFolder": "Konfigurationsordner öffnen"
+  "info.openFolder": "Konfigurationsordner öffnen",
+
+  "menu.checkUpdate": "Nach Updates suchen …",
+  "update.none": "Kein neueres Update vorhanden.",
+  "update.noneDetail": "Installiert ist Version {version}.",
+  "update.found": "Update verfügbar",
+  "update.foundDetail": "Version {version} wird heruntergeladen. Die Neustart-Aufforderung folgt, sobald alles bereit ist.",
+  "update.downloaded": "Update bereit",
+  "update.downloadedDetail": "Version {version} wurde heruntergeladen. Luxbox jetzt neu starten und installieren? Andernfalls wird das Update beim nächsten Beenden installiert.",
+  "update.restart": "Jetzt neu starten",
+  "update.later": "Später",
+  "update.failed": "Update fehlgeschlagen",
+  "update.devMode": "Im Entwicklungsmodus sind keine Updates verfügbar.",
+  "update.devModeDetail": "Aktuelle Version: {version}",
+  "update.pkgManager": "Diese Installation wird über das Paketsystem aktualisiert.",
+  "update.pkgManagerDetail": "Deb- und RPM-Pakete aktualisieren sich nicht automatisch – nutze den Paketmanager deiner Distribution."
 }

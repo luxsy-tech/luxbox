@@ -689,6 +689,7 @@ const MENUS = [
       { id: 'mixer', labelKey: 'menu.mixer' },
       { id: 'keys', labelKey: 'menu.keys' },
       { id: 'tour', labelKey: 'menu.tour' },
+      { id: 'checkUpdate', labelKey: 'menu.checkUpdate' },
       { id: 'info', labelKey: 'menu.info' },
       { id: 'exportConfig', labelKey: 'menu.exportConfig' },
       { id: 'importConfig', labelKey: 'menu.importConfig' },
