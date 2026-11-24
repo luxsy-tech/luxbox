@@ -1,0 +1,110 @@
+{
+  "name": "luxbox",
+  "version": "1.0.0",
+  "description": "Luxbox",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:win:machine": "electron-builder --win --config.nsis.perMachine=true",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": ">=37.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "local.luxbox",
+    "productName": "Luxbox",
+    "copyright": "Luxbox",
+    "artifactName": "Luxbox-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "webstore.js",
+      "sync.js",
+      "index.html",
+      "boot.html",
+      "renderer.js",
+      "styles.css",
+      "package.json",
+      "assets/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Luxbox",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "uninstallDisplayName": "Luxbox",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "language": "1031",
+      "artifactName": "Luxbox-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity"
+    },
+    "dmg": {
+      "title": "Luxbox ${version}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
+      "icon": "build/icon.png",
+      "category": "Network",
+      "synopsis": "Mehrere Web-Apps in einem Fenster",
+      "description": "Luxbox bündelt Messenger und Web-Apps mit getrennten Sitzungen in einem Fenster.",
+      "maintainer": "Luxbox <luxbox@example.com>"
+    },
+    "asarUnpack": [
+      "node_modules/electron-chrome-extensions/**"
+    ]
+  },
+  "productName": "Luxbox",
+  "author": {
+    "name": "Luxbox",
+    "email": "luxbox@example.com"
+  },
+  "homepage": "https://example.com/luxbox",
+  "license": "GPL-3.0-only",
+  "dependencies": {
+    "adm-zip": "^0.6.1",
+    "electron-chrome-extensions": "^4.9.0"
+  }
+}

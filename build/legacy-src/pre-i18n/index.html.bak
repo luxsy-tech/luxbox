@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data: crx: https: http:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>Luxbox</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <nav class="rail" aria-label="Apps">
+    <div id="apps" class="apps"></div>
+    <browser-action-list id="actions" alignment="top right" hidden></browser-action-list>
+    <button id="syncBtn" class="add small" title="config-Sync" aria-label="config-Sync">☁</button>
+    <button id="extBtn" class="add small" title="Erweiterungen" aria-label="Erweiterungen">🧩</button>
+    <button id="add" class="add" title="App hinzufügen" aria-label="App hinzufügen">+</button>
+  </nav>
+
+  <main class="empty" id="empty" hidden>
+    <h1>Noch keine Apps</h1>
+    <p>Füge mit „+“ deine erste App hinzu, zum Beispiel WhatsApp, Slack oder eine interne Webseite.</p>
+  </main>
+
+  <dialog id="dlg">
+    <h2 id="dlgTitle">App hinzufügen</h2>
+    <div class="field" id="presetField">
+      <label for="preset">Vorlage</label>
+      <select id="preset"></select>
+    </div>
+    <div class="field">
+      <label for="name">Name</label>
+      <input id="name" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="url">Adresse</label>
+      <input id="url" placeholder="https://…" autocomplete="off">
+    </div>
+    <label class="check">
+      <input id="ignore" type="checkbox">
+      Zertifikatswarnungen für diese App ignorieren
+    </label>
+    <label class="check">
+      <input id="own" type="checkbox">
+      Eigene Sitzung (getrennte Logins, z. B. für ein zweites Konto)
+    </label>
+    <label class="check">
+      <input id="keep" type="checkbox">
+      Im Hintergrund aktiv halten (Benachrichtigungen, Anrufe)
+    </label>
+    <p class="hint">Ohne eigene Sitzung teilen sich Apps Logins und Erweiterungen. Apps, die nicht im Hintergrund aktiv bleiben, gehen nach einiger Zeit in den Ruhezustand und geben ihren Speicher frei.</p>
+    <p id="error" class="error" role="alert"></p>
+    <div class="actions">
+      <button id="cancel" type="button" class="ghost">Abbrechen</button>
+      <button id="save" type="button" class="primary">Speichern</button>
+    </div>
+  </dialog>
+
+  <dialog id="extDlg">
+    <h2>Erweiterungen</h2>
+    <div class="field">
+      <label for="storeInput">Aus dem Store installieren</label>
+      <div class="row">
+        <input id="storeInput" placeholder="Store-Link oder Erweiterungs-ID" autocomplete="off">
+        <select id="storeKind" aria-label="Store für reine IDs">
+          <option value="chrome">Chrome</option>
+          <option value="edge">Edge</option>
+        </select>
+        <button id="storeInstall" type="button" class="primary">Installieren</button>
+      </div>
+    </div>
+    <div class="store-links">
+      <button id="openChrome" type="button" class="ghost">Chrome Web Store öffnen</button>
+      <button id="openEdge" type="button" class="ghost">Edge Add-ons öffnen</button>
+    </div>
+    <p class="hint">Im geöffneten Store die Seite der Erweiterung aufrufen und im Menü <strong>Erweiterungen → Aktuelle Store-Seite installieren</strong> wählen. Alternativ den Link der Seite hier einfügen.</p>
+    <ul id="extList" class="ext-list"></ul>
+    <p id="extError" class="error" role="alert"></p>
+    <div class="actions">
+      <button id="extFolder" type="button" class="ghost">Entpackten Ordner laden …</button>
+      <button id="extClose" type="button" class="primary">Schließen</button>
+    </div>
+  </dialog>
+
+  <dialog id="syncDlg">
+    <h2>config-Sync</h2>
+    <p class="hint">Wähle einen Ordner innerhalb deines sync-Verzeichnisses. Luxbox legt dort pro Gerät eine Datei ab und gleicht sie mit den anderen Geräten ab. Der Sync Client selbst überträgt die Datei, Luxbox braucht keine Zugangsdaten.</p>
+    <p class="hint"><strong>Wird abgeglichen:</strong> Apps (Name, Adresse, Optionen, Reihenfolge), Einstellungen und die Liste der Store-Erweiterungen.<br><strong>Nie abgeglichen:</strong> Passwörter, Logins und Cookies, Erweiterungsdaten, Favicons. Auf jedem Gerät meldest du dich einmal selbst an.</p>
+    <div id="syncStatus" class="sync-status"></div>
+    <p id="syncError" class="error" role="alert"></p>
+    <div class="actions">
+      <button id="syncOff" type="button" class="ghost">Sync beenden</button>
+      <button id="syncNow" type="button" class="ghost">Jetzt abgleichen</button>
+      <button id="syncChoose" type="button" class="ghost">Ordner wählen …</button>
+      <button id="syncClose" type="button" class="primary">Schließen</button>
+    </div>
+  </dialog>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

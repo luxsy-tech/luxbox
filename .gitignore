@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build-Artefakte
+dist/
+*.blockmap
+squashfs-root/
+
+# Electron / Builder
+.electron/
+__output/
+
+# Backups
+*-Backup-*/
+
+# Editor & OS
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+*.lnk
+
+# Logs & temp
+*.log
+npm-debug.log*
+.tmp/
+temp/
+
+# Lokale Testskripte (nicht Teil der App)
+verify-*.js

@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "deviceId": "b803d334-58f2-4c92-84f9-8196f62a2822",
+  "deviceName": "luxsy-wks-1",
+  "writtenAt": 1795203413732,
+  "apps": [
+    {
+      "id": "867179a5-5db7-44d0-92ff-bb5a2677137d",
+      "name": "WhatsApp",
+      "url": "https://web.whatsapp.com/",
+      "ignoreCerts": false,
+      "muted": false,
+      "ownSession": false,
+      "keepAlive": false,
+      "updatedAt": 1795081020739
+    },
+    {
+      "id": "33951b3e-7bb1-457b-a1ba-da851a1d5bd6",
+      "name": "Telegram",
+      "url": "https://web.telegram.org/k/",
+      "ignoreCerts": false,
+      "muted": false,
+      "ownSession": false,
+      "keepAlive": false,
+      "updatedAt": 1795081203667
+    },
+    {
+      "id": "4fa0124f-d289-454c-96e0-0c341b2d342d",
+      "name": "Zammad",
+      "url": "https://support.isystems-integration.com/",
+      "ignoreCerts": false,
+      "muted": false,
+      "ownSession": false,
+      "keepAlive": true,
+      "updatedAt": 1795172822033
+    },
+    {
+      "id": "54dc070d-4b3a-45a3-8e08-f7bb55fac282",
+      "name": "Bitwarden",
+      "url": "https://bitwarden.isystems-integration.com/",
+      "ignoreCerts": false,
+      "muted": false,
+      "ownSession": false,
+      "keepAlive": false,
+      "updatedAt": 1795081248762
+    },
+    {
+      "id": "04b5ce08-dd93-4592-a29e-a9b74aa7e09c",
+      "name": "Zabbix",
+      "url": "https://zabbix.isystems-integration.com/",
+      "ignoreCerts": true,
+      "muted": false,
+      "ownSession": false,
+      "keepAlive": false,
+      "updatedAt": 1795081262282
+    },
+    {
+      "id": "d8f7b658-e67b-4876-84b8-91402db205d6",
+      "name": "Bookstack",
+      "url": "https://bookstack.isystems-integration.com/",
+      "ignoreCerts": true,
+      "muted": false,
+      "ownSession": false,
+      "keepAlive": false,
+      "updatedAt": 1795081276194
+    },
+    {
+      "id": "eec1684a-72c9-4f5e-af20-73eebe8d3425",
+      "name": "PDM DCTPA",
+      "url": "https://172.19.5.3:8443/",
+      "ignoreCerts": true,
+      "muted": false,
+      "ownSession": false,
+      "keepAlive": false,
+      "updatedAt": 1795081288146
+    },
+    {
+      "id": "b9e2e6a6-0969-4d7f-8eae-c584fdedf147",
+      "name": "PDM DCDUS02",
+      "url": "https://192.168.192.5:8443/",
+      "ignoreCerts": true,
+      "muted": false,
+      "ownSession": false,
+      "keepAlive": false,
+      "updatedAt": 1795081303369
+    },
+    {
+      "id": "f74d192c-541c-4f77-a034-23a32aa8eaeb",
+      "name": "XCCA",
+      "url": "https://xcca.isystems-integration.com/",
+      "ignoreCerts": true,
+      "muted": false,
+      "ownSession": false,
+      "keepAlive": false,
+      "updatedAt": 1795081316905
+    },
+    {
+      "id": "0b6ecce6-be25-4596-9009-90f651f9e6ae",
+      "name": "Cloude",
+      "url": "https://claude.ai/",
+      "ignoreCerts": false,
+      "muted": false,
+      "ownSession": false,
+      "keepAlive": false,
+      "updatedAt": 1795081327442
+    }
+  ],
+  "order": [
+    "867179a5-5db7-44d0-92ff-bb5a2677137d",
+    "33951b3e-7bb1-457b-a1ba-da851a1d5bd6",
+    "4fa0124f-d289-454c-96e0-0c341b2d342d",
+    "54dc070d-4b3a-45a3-8e08-f7bb55fac282",
+    "04b5ce08-dd93-4592-a29e-a9b74aa7e09c",
+    "d8f7b658-e67b-4876-84b8-91402db205d6",
+    "eec1684a-72c9-4f5e-af20-73eebe8d3425",
+    "b9e2e6a6-0969-4d7f-8eae-c584fdedf147",
+    "f74d192c-541c-4f77-a034-23a32aa8eaeb",
+    "0b6ecce6-be25-4596-9009-90f651f9e6ae"
+  ],
+  "orderAt": 0,
+  "settings": {
+    "hibernateMinutes": 15,
+    "updatedAt": 0
+  },
+  "extensions": [
+    {
+      "id": "jbkfoedolllekgbhcbcoahefnbanhhlh",
+      "store": "edge",
+      "name": "Bitwarden Password Manager",
+      "version": "2026.10.2",
+      "updatedAt": 1795081011321
+    }
+  ],
+  "deletedApps": {
+    "80d539ad-d2e7-4f2e-96af-015d4a083b2b": 1795081166798,
+    "05a68524-c8ff-4e0e-904f-efd24edb11df": 1795081169384,
+    "60fd6663-afc4-495a-b5bb-080fa4e71c37": 1795081172081
+  },
+  "deletedExt": {
+    "ifoakfbpdcdoeenechcleahebpibofpc": 1795081176407
+  }
+}

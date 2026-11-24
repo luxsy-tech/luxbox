@@ -1,0 +1,39 @@
+// Einfache Sprachumschaltung (Deutsch/Englisch).
+// Wird vom Hauptprozess, vom Preload und von den Modulen sync/webstore genutzt.
+const de = require('./locales/de.json');
+const en = require('./locales/en.json');
+
+const DICTS = { de, en };
+let locale = 'de';
+
+// Alles was mit "de" beginnt (de, de-DE, de-AT ...) wird Deutsch, sonst Englisch.
+function setLocale(raw) {
+  const l = String(raw || '').toLowerCase();
+  locale = l.startsWith('de') ? 'de' : 'en';
+  return locale;
+}
+
+function getLocale() {
+  return locale;
+}
+
+// t('dialog.removeMessage', { name: 'WhatsApp' })
+function t(key, vars) {
+  const dict = DICTS[locale] || de;
+  let s = dict[key];
+  if (s == null) s = de[key];
+  if (s == null) return key;
+  if (vars) {
+    for (const k of Object.keys(vars)) {
+      s = s.split('{' + k + '}').join(String(vars[k]));
+    }
+  }
+  return s;
+}
+
+// Sprache + Woerterbuch fuer den Renderer (ueber den Preload)
+function bundle() {
+  return { locale, dict: DICTS[locale] || de };
+}
+
+module.exports = { t, setLocale, getLocale, bundle };

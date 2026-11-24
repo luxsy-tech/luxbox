@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data: crx: https: http:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>Luxbox</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="menubar" id="menubar" role="menubar"></div>
+  <div id="backdrop" class="backdrop" hidden></div>
+  <div class="stage">
+  <nav class="rail" data-i18n-attr="aria-label:nav.apps">
+    <div id="apps" class="apps"></div>
+    <browser-action-list id="actions" alignment="top right" hidden></browser-action-list>
+    <button id="syncBtn" class="add small" data-i18n-attr="title:nav.sync;aria-label:nav.sync"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 4.5v5h-5"/><path d="M3.5 19.5v-5h5"/><path d="M5 9.5a7.5 7.5 0 0 1 12.6-3.2l2.9 3.2"/><path d="M19 14.5a7.5 7.5 0 0 1-12.6 3.2l-2.9-3.2"/></svg></button>
+    <button id="extBtn" class="add small" data-i18n-attr="title:nav.extensions;aria-label:nav.extensions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2.2"/><rect x="13" y="4" width="7" height="7" rx="2.2"/><rect x="4" y="13" width="7" height="7" rx="2.2"/><circle cx="16.5" cy="16.5" r="3.5"/></svg></button>
+    <button id="add" class="add" data-i18n-attr="title:nav.add;aria-label:nav.add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+  </nav>
+
+  <main class="empty" id="empty" hidden>
+    <h1 data-i18n="empty.title">Noch keine Apps</h1>
+    <p data-i18n="empty.text">Füge mit „+“ deine erste App hinzu, zum Beispiel WhatsApp, Slack oder eine interne Webseite.</p>
+  </main>
+  </div>
+
+  <dialog id="dlg">
+    <h2 id="dlgTitle" data-i18n="dlg.titleAdd">App hinzufügen</h2>
+    <div class="field" id="presetField">
+      <label for="preset" data-i18n="dlg.preset">Vorlage</label>
+      <select id="preset"></select>
+    </div>
+    <div class="field">
+      <label for="name" data-i18n="dlg.name">Name</label>
+      <input id="name" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="url" data-i18n="dlg.url">Adresse</label>
+      <input id="url" data-i18n-attr="placeholder:dlg.urlPlaceholder" placeholder="https://…" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="group" data-i18n="dlg.group">Gruppe</label>
+      <input id="group" list="groupList" data-i18n-attr="placeholder:dlg.groupPlaceholder" placeholder="z. B. Messenger" autocomplete="off">
+      <datalist id="groupList"></datalist>
+    </div>
+    <label class="check">
+      <input id="ignore" type="checkbox">
+      <span data-i18n="dlg.ignoreCerts">Zertifikatswarnungen für diese App ignorieren</span>
+    </label>
+    <label class="check">
+      <input id="own" type="checkbox">
+      <span data-i18n="dlg.ownSession">Eigene Sitzung (getrennte Logins, z. B. für ein zweites Konto)</span>
+    </label>
+    <label class="check">
+      <input id="keep" type="checkbox">
+      <span data-i18n="dlg.keepAlive">Im Hintergrund aktiv halten (Benachrichtigungen, Anrufe)</span>
+    </label>
+    <label class="check">
+      <input id="protect" type="checkbox">
+      <span data-i18n="dlg.protect">App schützen (PIN / Windows Hello)</span>
+    </label>
+    <div class="field" id="lockAfterField">
+      <label for="lockAfter" data-i18n="dlg.lockAfter">Automatisch sperren</label>
+      <select id="lockAfter">
+        <option value="0" data-i18n="dlg.lockNever">Nie (nur manuell)</option>
+        <option value="-1" data-i18n="dlg.lockSwitch">Beim Wechseln der App</option>
+        <option value="1" data-i18n="dlg.lockAfter1">Nach 1 Minute Inaktivität</option>
+        <option value="5" data-i18n="dlg.lockAfter5">Nach 5 Minuten Inaktivität</option>
+        <option value="15" data-i18n="dlg.lockAfter15">Nach 15 Minuten Inaktivität</option>
+      </select>
+    </div>
+    <p class="hint" data-i18n="dlg.hint">Ohne eigene Sitzung teilen sich Apps Logins und Erweiterungen. Apps, die nicht im Hintergrund aktiv bleiben, gehen nach einiger Zeit in den Ruhezustand und geben ihren Speicher frei.</p>
+    <p id="error" class="error" role="alert"></p>
+    <div class="actions">
+      <button id="cancel" type="button" class="ghost" data-i18n="dlg.cancel">Abbrechen</button>
+      <button id="save" type="button" class="primary" data-i18n="dlg.save">Speichern</button>
+    </div>
+  </dialog>
+
+  <dialog id="extDlg">
+    <h2 data-i18n="ext.title">Erweiterungen</h2>
+    <div class="field">
+      <label for="storeInput" data-i18n="ext.installFromStore">Aus dem Store installieren</label>
+      <div class="row">
+        <input id="storeInput" data-i18n-attr="placeholder:ext.storePlaceholder" placeholder="Store-Link oder Erweiterungs-ID" autocomplete="off">
+        <select id="storeKind" data-i18n-attr="aria-label:ext.storeSelect" aria-label="Store für reine IDs">
+          <option value="chrome">Chrome</option>
+          <option value="edge">Edge</option>
+        </select>
+        <button id="storeInstall" type="button" class="primary" data-i18n="ext.install">Installieren</button>
+      </div>
+    </div>
+    <div class="store-links">
+      <button id="openChrome" type="button" class="ghost" data-i18n="ext.openChrome">Chrome Web Store öffnen</button>
+      <button id="openEdge" type="button" class="ghost" data-i18n="ext.openEdge">Edge Add-ons öffnen</button>
+    </div>
+    <p class="hint" data-i18n-html="ext.hint">Im geöffneten Store die Seite der Erweiterung aufrufen und im Menü <strong>Erweiterungen → Aktuelle Store-Seite installieren</strong> wählen. Alternativ den Link der Seite hier einfügen.</p>
+    <ul id="extList" class="ext-list"></ul>
+    <p id="extError" class="error" role="alert"></p>
+    <div class="actions">
+      <button id="extFolder" type="button" class="ghost" data-i18n="ext.folder">Entpackten Ordner laden …</button>
+      <button id="extClose" type="button" class="primary" data-i18n="ext.close">Schließen</button>
+    </div>
+  </dialog>
+
+  <dialog id="syncDlg">
+    <h2 data-i18n="sync.title">config-Sync</h2>
+    <p class="hint" data-i18n="sync.hint1">Wähle einen Ordner innerhalb deines sync-Verzeichnisses. Luxbox legt dort pro Gerät eine Datei ab und gleicht sie mit den anderen Geräten ab. Der Sync Client selbst überträgt die Datei, Luxbox braucht keine Zugangsdaten.</p>
+    <p class="hint" data-i18n-html="sync.hint2"><strong>Wird abgeglichen:</strong> Apps (Name, Adresse, Optionen, Reihenfolge), Einstellungen und die Liste der Store-Erweiterungen.<br><strong>Nie abgeglichen:</strong> Passwörter, Logins und Cookies, Erweiterungsdaten, Favicons. Auf jedem Gerät meldest du dich einmal selbst an.</p>
+    <div id="syncStatus" class="sync-status"></div>
+    <p id="syncError" class="error" role="alert"></p>
+    <div class="actions">
+      <button id="syncOff" type="button" class="ghost" data-i18n="sync.stop">Sync beenden</button>
+      <button id="syncNow" type="button" class="ghost" data-i18n="sync.now">Jetzt abgleichen</button>
+      <button id="syncChoose" type="button" class="ghost" data-i18n="sync.choose">Ordner wählen …</button>
+      <button id="syncClose" type="button" class="primary" data-i18n="sync.close">Schließen</button>
+    </div>
+  </dialog>
+
+  <dialog id="keysDlg">
+    <h2 data-i18n="keys.title">Tastenkürzel</h2>
+    <table class="keys" id="keysTable"></table>
+    <div class="actions">
+      <button id="keysClose" type="button" class="primary" data-i18n="dlg.close">Schließen</button>
+    </div>
+  </dialog>
+
+  <dialog id="pinDlg">
+    <h2 data-i18n="pin.title">PIN festlegen</h2>
+    <div class="field">
+      <label for="pinInput" data-i18n="pin.label">Neue PIN (4–8 Ziffern)</label>
+      <input id="pinInput" type="password" inputmode="numeric" autocomplete="off">
+    </div>
+    <p id="pinError" class="error" role="alert"></p>
+    <div class="actions">
+      <button id="pinCancel" type="button" class="ghost" data-i18n="dlg.cancel">Abbrechen</button>
+      <button id="pinSave" type="button" class="primary" data-i18n="dlg.save">Speichern</button>
+    </div>
+  </dialog>
+
+  <dialog id="infoDlg">
+    <h2>Luxbox</h2>
+    <p class="info-version" id="infoVersion"></p>
+    <p class="hint" data-i18n="info.desc">Messenger und Web-Apps in einem Fenster.</p>
+    <h3 data-i18n="info.details">Technische Details</h3>
+    <table class="info-table" id="infoTable"></table>
+    <div class="actions">
+      <button id="infoFolder" type="button" class="ghost" data-i18n="info.openFolder">Konfigurationsordner öffnen</button>
+      <button id="infoClose" type="button" class="primary" data-i18n="dlg.close">Schließen</button>
+    </div>
+  </dialog>
+
+  <dialog id="authDlg">
+    <h2 data-i18n="auth.title">Bestätigung erforderlich</h2>
+    <p class="hint" id="authReason"></p>
+    <div class="field">
+      <input id="authPin" type="password" inputmode="numeric" autocomplete="off" data-i18n-attr="placeholder:lock.placeholder" placeholder="PIN">
+    </div>
+    <p id="authError" class="error" role="alert"></p>
+    <div class="actions">
+      <button id="authHello" type="button" class="ghost" hidden data-i18n="auth.hello">Mit Windows Hello bestätigen</button>
+      <button id="authCancel" type="button" class="ghost" data-i18n="dlg.cancel">Abbrechen</button>
+      <button id="authOk" type="button" class="primary" data-i18n="auth.confirm">Bestätigen</button>
+    </div>
+  </dialog>
+
+  <dialog id="permDlg">
+    <h2 data-i18n="perm.title">Berechtigungen</h2>
+    <div id="permRows" class="perm-rows"></div>
+    <div class="actions">
+      <button id="permCancel" type="button" class="ghost" data-i18n="dlg.cancel">Abbrechen</button>
+      <button id="permSave" type="button" class="primary" data-i18n="dlg.save">Speichern</button>
+    </div>
+  </dialog>
+
+  <dialog id="mixDlg">
+    <h2 data-i18n="mix.title">Audio-Mixer</h2>
+    <p class="hint" data-i18n="mix.hint">Ton pro App stumm schalten – die Lautstärke selbst regelt die jeweilige App.</p>
+    <ul id="mixList" class="mix-list"></ul>
+    <div class="actions">
+      <button id="mixAll" type="button" class="ghost" data-i18n="mix.all">Alle stumm schalten</button>
+      <button id="mixClose" type="button" class="primary" data-i18n="dlg.close">Schließen</button>
+    </div>
+  </dialog>
+
+  <div id="tour" class="tour" hidden>
+    <div class="tour-box">
+      <h2 id="tourTitle"></h2>
+      <p id="tourText" class="hint"></p>
+      <div class="tour-dots" id="tourDots"></div>
+      <div class="actions">
+        <button id="tourSkip" type="button" class="ghost" data-i18n="tour.skip">Überspringen</button>
+        <button id="tourNext" type="button" class="primary" data-i18n="tour.next">Weiter</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="appLock" class="lock" hidden>
+    <div class="lock-box">
+      <h2 data-i18n="applock.title">App gesperrt</h2>
+      <p class="hint" id="appLockName"></p>
+      <p class="hint" id="appLockPrompt" data-i18n="applock.prompt">PIN eingeben, um die App zu öffnen</p>
+      <input id="appLockPin" type="password" inputmode="numeric" autocomplete="off" data-i18n-attr="placeholder:lock.placeholder" placeholder="PIN">
+      <p id="appLockError" class="error" role="alert"></p>
+      <button id="appLockUnlock" type="button" class="primary" data-i18n="lock.unlock">Entsperren</button>
+      <button id="appLockHello" type="button" class="ghost" hidden data-i18n="lock.hello">Mit Windows Hello entsperren</button>
+      <button id="appLockOther" type="button" class="ghost" data-i18n="applock.other">Andere App öffnen</button>
+    </div>
+  </div>
+
+  <div id="lock" class="lock" hidden>
+    <div class="lock-box">
+      <h2 data-i18n="lock.title">Gesperrt</h2>
+      <p class="hint" id="lockPrompt" data-i18n="lock.prompt">PIN eingeben, um fortzufahren</p>
+      <input id="lockPin" type="password" inputmode="numeric" autocomplete="off" data-i18n-attr="placeholder:lock.placeholder" placeholder="PIN">
+      <p id="lockError" class="error" role="alert"></p>
+      <button id="lockUnlock" type="button" class="primary" data-i18n="lock.unlock">Entsperren</button>
+      <button id="lockHello" type="button" class="ghost" hidden data-i18n="lock.hello">Mit Windows Hello entsperren</button>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

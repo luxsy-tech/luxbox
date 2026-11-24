@@ -1,0 +1,85 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+// Fehler in diesem Skript duerfen die Oberflaeche nicht unbenutzbar machen:
+// 1) window.api wird zuerst exponiert (die App bleibt bedienbar),
+// 2) alles andere laeuft in eigenen try/catch-Bloecken,
+// 3) Fehler landen in _diag.log im App-Ordner.
+const diag = (msg) => {
+  try {
+    require('fs').appendFileSync(
+      require('path').join(__dirname, '_diag.log'),
+      new Date().toISOString() + ' [preload] ' + msg + '\n'
+    );
+  } catch {}
+};
+
+const on = (channel, cb) => {
+  const handler = (_event, payload) => cb(payload);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+};
+
+contextBridge.exposeInMainWorld('api', {
+  list: () => ipcRenderer.invoke('apps:list'),
+  add: (data) => ipcRenderer.invoke('apps:add', data),
+  update: (id, data) => ipcRenderer.invoke('apps:update', id, data),
+  remove: (id) => ipcRenderer.invoke('apps:remove', id),
+  activate: (id) => ipcRenderer.invoke('apps:activate', id),
+  reload: (id) => ipcRenderer.invoke('apps:reload', id),
+  reorder: (ids) => ipcRenderer.invoke('apps:reorder', ids),
+  contextMenu: (id) => ipcRenderer.invoke('apps:context-menu', id),
+  listExtensions: () => ipcRenderer.invoke('ext:list'),
+  addExtension: () => ipcRenderer.invoke('ext:add'),
+  removeExtension: (dir) => ipcRenderer.invoke('ext:remove', dir),
+  installExtension: (input, store) => ipcRenderer.invoke('ext:install', input, store),
+  openStore: (kind) => ipcRenderer.invoke('ext:open-store', kind),
+  onExtensionsChanged: (cb) => on('ext:changed', cb),
+  onOpenExtensions: (cb) => on('ui:open-extensions', cb),
+  syncStatus: () => ipcRenderer.invoke('sync:status'),
+  syncChoose: () => ipcRenderer.invoke('sync:choose'),
+  syncNow: () => ipcRenderer.invoke('sync:now'),
+  syncDisable: () => ipcRenderer.invoke('sync:disable'),
+  onSyncStatus: (cb) => on('sync:status', cb),
+  onOpenSync: (cb) => on('ui:open-sync', cb),
+  onExtensionsLoaded: (cb) => on('ext:loaded', cb),
+  setOverlay: (open) => ipcRenderer.invoke('ui:overlay', open),
+
+  onState: (cb) => on('app:state', cb),
+  onActive: (cb) => on('app:active', cb),
+  onChanged: (cb) => on('apps:changed', cb),
+  onEditRequest: (cb) => on('app:edit-request', cb),
+});
+
+// Sprache (optional): scheitert das Laden, zeigt der Renderer seine statischen Texte
+try {
+  const i18n = require('./i18n.js');
+  const langArg = (process.argv || []).find((a) => typeof a === 'string' && a.startsWith('--luxbox-locale='));
+  if (langArg) i18n.setLocale(langArg.slice('--luxbox-locale='.length));
+  if (i18n.isReady()) {
+    contextBridge.exposeInMainWorld('i18n', {
+      locale: i18n.getLocale(),
+      t: (key, vars) => i18n.t(key, vars),
+    });
+  } else {
+    diag('Sprachdateien nicht lesbar, Oberflaeche zeigt die Standardsprache');
+  }
+} catch (err) {
+  diag('i18n fehlgeschlagen: ' + ((err && err.stack) || err));
+}
+
+// Fuegt das Element <browser-action-list> ein (Symbole und Popups der Erweiterungen)
+try {
+  let lastError = null;
+  for (const mod of ['electron-chrome-extensions/browser-action', 'electron-chrome-extensions/dist/browser-action']) {
+    try {
+      require(mod).injectBrowserAction();
+      lastError = null;
+      break;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  if (lastError) diag('browser-action nicht geladen: ' + lastError.message);
+} catch (err) {
+  diag('browser-action fehlgeschlagen: ' + ((err && err.stack) || err));
+}

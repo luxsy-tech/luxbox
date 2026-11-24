@@ -1,0 +1,220 @@
+// Abgleich der Konfiguration über einen Ordner (zum Beispiel im Nextcloud-Verzeichnis).
+// Jedes Gerät schreibt nur seine eigene Datei und liest die der anderen. So gibt es keine Schreibkonflikte.
+// Es werden nur Apps, Einstellungen und die Liste der Store-Erweiterungen übertragen.
+// Nie übertragen werden Passwörter, Logins, Cookies, Erweiterungsdaten und Favicons.
+const fs = require('fs');
+const path = require('path');
+
+const FILE_PREFIX = 'luxbox-sync-';
+const FILE_RE = /^luxbox-sync-([0-9a-f-]{36})\.json$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EXT_ID_RE = /^[a-p]{32}$/;
+const MAX_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_ITEMS = 500;
+const TOMBSTONE_MAX_AGE = 180 * 24 * 60 * 60 * 1000;
+
+const num = (v) => (Number.isFinite(v) ? v : 0);
+const str = (v, max) => String(v ?? '').slice(0, max);
+
+const fileFor = (folder, deviceId) => path.join(folder, `${FILE_PREFIX}${deviceId}.json`);
+
+/* ---------- Schreiben ---------- */
+
+function buildSnapshot(state, device) {
+  return {
+    version: 1,
+    deviceId: device.deviceId,
+    deviceName: device.deviceName,
+    writtenAt: Date.now(),
+    apps: state.apps.map((a) => ({
+      id: a.id,
+      name: a.name,
+      url: a.url,
+      ignoreCerts: a.ignoreCerts === true,
+      muted: a.muted === true,
+      ownSession: a.ownSession !== false,
+      keepAlive: a.keepAlive === true,
+      updatedAt: num(a.updatedAt),
+    })),
+    order: state.apps.map((a) => a.id),
+    orderAt: num(state.orderAt),
+    settings: {
+      hibernateMinutes: num(state.settings.hibernateMinutes),
+      updatedAt: num(state.settings.updatedAt),
+    },
+    // Nur Store-Erweiterungen (per ID). Lokale Ordner-Pfade sind geräteabhängig und bleiben außen vor.
+    extensions: state.extensions
+      .filter((e) => e.id && e.store)
+      .map((e) => ({
+        id: e.id, store: e.store, name: e.name, version: e.version, updatedAt: num(e.updatedAt),
+      })),
+    deletedApps: state.deletedApps,
+    deletedExt: state.deletedExt,
+  };
+}
+
+// Vergleichsschlüssel ohne Zeitstempel des Schreibens, damit unveränderte Daten nicht neu geschrieben werden
+const contentKey = (snapshot) => JSON.stringify({ ...snapshot, writtenAt: 0 });
+
+function writeSnapshot(folder, snapshot) {
+  const file = fileFor(folder, snapshot.deviceId);
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(snapshot, null, 2));
+  fs.renameSync(tmp, file);
+}
+
+/* ---------- Lesen und Prüfen (die Datei ist nicht vertrauenswürdig) ---------- */
+
+function cleanTombstones(raw, idRe) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [id, ts] of Object.entries(raw).slice(0, MAX_ITEMS * 4)) {
+    if (idRe.test(id) && Number.isFinite(ts)) out[id] = ts;
+  }
+  return out;
+}
+
+function validateSnapshot(raw, normalizeUrl) {
+  if (!raw || raw.version !== 1 || !UUID_RE.test(String(raw.deviceId))) return null;
+
+  const apps = [];
+  for (const a of Array.isArray(raw.apps) ? raw.apps.slice(0, MAX_ITEMS) : []) {
+    const url = normalizeUrl(a && a.url);
+    if (!a || !UUID_RE.test(String(a.id)) || !url) continue;
+    apps.push({
+      id: a.id,
+      name: str(a.name, 60) || new URL(url).hostname,
+      url,
+      ignoreCerts: a.ignoreCerts === true,
+      muted: a.muted === true,
+      ownSession: a.ownSession !== false,
+      keepAlive: a.keepAlive === true,
+      updatedAt: num(a.updatedAt),
+    });
+  }
+
+  const extensions = [];
+  for (const e of Array.isArray(raw.extensions) ? raw.extensions.slice(0, MAX_ITEMS) : []) {
+    if (!e || !EXT_ID_RE.test(String(e.id)) || (e.store !== 'chrome' && e.store !== 'edge')) continue;
+    extensions.push({
+      id: e.id, store: e.store, name: str(e.name, 100) || e.id, version: str(e.version, 40), updatedAt: num(e.updatedAt),
+    });
+  }
+
+  const minutes = raw.settings && Number.isInteger(raw.settings.hibernateMinutes)
+    && raw.settings.hibernateMinutes >= 0 && raw.settings.hibernateMinutes <= 1440
+    ? raw.settings.hibernateMinutes : null;
+
+  return {
+    deviceId: raw.deviceId,
+    deviceName: str(raw.deviceName, 80) || 'Unbekanntes Gerät',
+    writtenAt: num(raw.writtenAt),
+    apps,
+    order: (Array.isArray(raw.order) ? raw.order : []).filter((id) => UUID_RE.test(String(id))).slice(0, MAX_ITEMS),
+    orderAt: num(raw.orderAt),
+    settings: { hibernateMinutes: minutes, updatedAt: num(raw.settings && raw.settings.updatedAt) },
+    extensions,
+    deletedApps: cleanTombstones(raw.deletedApps, UUID_RE),
+    deletedExt: cleanTombstones(raw.deletedExt, EXT_ID_RE),
+  };
+}
+
+function readRemotes(folder, ownDeviceId, normalizeUrl) {
+  const snapshots = [];
+  for (const name of fs.readdirSync(folder)) {
+    const m = FILE_RE.exec(name);
+    if (!m || m[1].toLowerCase() === String(ownDeviceId).toLowerCase()) continue;
+    try {
+      const file = path.join(folder, name);
+      if (fs.statSync(file).size > MAX_FILE_BYTES) continue;
+      const clean = validateSnapshot(JSON.parse(fs.readFileSync(file, 'utf8')), normalizeUrl);
+      if (clean) snapshots.push(clean);
+    } catch { /* halb synchronisierte oder defekte Datei: beim nächsten Durchlauf erneut */ }
+  }
+  return snapshots;
+}
+
+/* ---------- Zusammenführen ---------- */
+
+function mergeTombstones(a, b) {
+  const out = { ...a };
+  for (const [id, ts] of Object.entries(b)) out[id] = Math.max(out[id] || 0, ts);
+  return out;
+}
+
+function pruneTombstones(map) {
+  const limit = Date.now() - TOMBSTONE_MAX_AGE;
+  return Object.fromEntries(Object.entries(map).filter(([, ts]) => ts > limit));
+}
+
+function merge(local, remotes) {
+  let deletedApps = { ...local.deletedApps };
+  let deletedExt = { ...local.deletedExt };
+  for (const r of remotes) {
+    deletedApps = mergeTombstones(deletedApps, r.deletedApps);
+    deletedExt = mergeTombstones(deletedExt, r.deletedExt);
+  }
+  deletedApps = pruneTombstones(deletedApps);
+  deletedExt = pruneTombstones(deletedExt);
+
+  // Apps: je ID gewinnt der neuere Stand, Löschmarken gewinnen bei Gleichstand
+  const remoteApps = new Map();
+  for (const r of remotes) {
+    for (const a of r.apps) {
+      if (!remoteApps.has(a.id) || a.updatedAt > remoteApps.get(a.id).updatedAt) remoteApps.set(a.id, a);
+    }
+  }
+  const apps = [];
+  const seen = new Set();
+  for (const a of local.apps) {
+    seen.add(a.id);
+    const r = remoteApps.get(a.id);
+    const winner = r && r.updatedAt > num(a.updatedAt) ? { ...a, ...r } : a;
+    if ((deletedApps[a.id] || 0) >= num(winner.updatedAt) && deletedApps[a.id]) continue;
+    apps.push(winner);
+  }
+  for (const [id, r] of remoteApps) {
+    if (seen.has(id)) continue;
+    if (deletedApps[id] && deletedApps[id] >= r.updatedAt) continue;
+    // Auf beiden Geräten von Hand angelegt: nicht doppelt anzeigen
+    if (apps.some((a) => a.url === r.url && a.name === r.name)) continue;
+    apps.push({ ...r });
+  }
+
+  // Reihenfolge: die zuletzt geänderte gewinnt
+  let order = local.apps.map((a) => a.id);
+  let orderAt = num(local.orderAt);
+  for (const r of remotes) {
+    if (r.orderAt > orderAt) { order = r.order; orderAt = r.orderAt; }
+  }
+  const pos = new Map(order.map((id, i) => [id, i]));
+  apps.sort((a, b) => (pos.has(a.id) ? pos.get(a.id) : 1e9) - (pos.has(b.id) ? pos.get(b.id) : 1e9));
+
+  // Einstellungen
+  let settings = { ...local.settings };
+  for (const r of remotes) {
+    if (r.settings.hibernateMinutes !== null && r.settings.updatedAt > num(settings.updatedAt)) {
+      settings = { hibernateMinutes: r.settings.hibernateMinutes, updatedAt: r.settings.updatedAt };
+    }
+  }
+
+  // Store-Erweiterungen (lokale Ordner-Erweiterungen bleiben unverändert)
+  const manual = local.extensions.filter((e) => !e.id);
+  const byId = new Map(local.extensions.filter((e) => e.id).map((e) => [e.id, e]));
+  for (const r of remotes) {
+    for (const e of r.extensions) {
+      const cur = byId.get(e.id);
+      if (!cur) byId.set(e.id, e);
+      else if (e.updatedAt > num(cur.updatedAt)) byId.set(e.id, { ...cur, updatedAt: e.updatedAt });
+    }
+  }
+  const storeExt = [...byId.values()].filter((e) => !(deletedExt[e.id] && deletedExt[e.id] >= num(e.updatedAt)));
+
+  return {
+    apps, orderAt, settings, deletedApps, deletedExt, extensions: [...manual, ...storeExt],
+  };
+}
+
+module.exports = {
+  buildSnapshot, contentKey, writeSnapshot, readRemotes, merge, fileFor, FILE_PREFIX,
+};

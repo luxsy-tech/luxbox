@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Boot</title>
+<style>
+:root{
+  --seek:0ms;
+  --bg:#17122b;
+  --violet:#8b5cf6;
+  --violet-2:#a78bfa;
+  --text:#f5f3ff;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
+  font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+  user-select:none;-webkit-user-select:none;cursor:default}
+body{opacity:1;transition:opacity 360ms ease}
+body.out{opacity:0}
+
+.stage{position:relative;height:100%;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:28px;
+  background:
+    radial-gradient(520px 300px at 50% 38%, rgba(139,92,246,.22), transparent 70%),
+    radial-gradient(900px 520px at 50% 118%, rgba(88,28,235,.16), transparent 70%),
+    var(--bg)}
+
+.icon-wrap{position:relative;width:152px;height:152px;display:grid;place-items:center}
+.icon-wrap img{width:140px;height:140px;border-radius:30px;display:block;
+  box-shadow:0 22px 60px rgba(124,58,237,.50), 0 6px 22px rgba(0,0,0,.55);
+  opacity:0;transform:scale(.72) translateY(12px);
+  animation:iconIn 900ms cubic-bezier(.2,.9,.25,1) 0ms both}
+.ring{position:absolute;width:152px;height:152px;border-radius:38px;
+  border:2px solid rgba(167,139,250,.50);opacity:0;
+  animation:ring 2400ms cubic-bezier(.2,.6,.3,1) 320ms both infinite}
+.ring.r2{animation-delay:1520ms}
+
+.title{margin:0;font-size:30px;font-weight:600;letter-spacing:.6px;color:var(--text);
+  opacity:0;transform:translateY(10px);
+  animation:fadeUp 700ms cubic-bezier(.2,.9,.25,1) 430ms both}
+.title span{color:var(--violet-2)}
+.bar{width:196px;height:4px;border-radius:99px;background:rgba(244,242,255,.12);
+  overflow:hidden;opacity:0;animation:fadeUp 500ms ease 820ms both}
+.bar i{display:block;width:60%;height:100%;border-radius:99px;
+  background:linear-gradient(90deg,transparent,var(--violet),var(--violet-2),transparent);
+  transform:translateX(-110%);animation:shimmer 1500ms ease-in-out 900ms infinite}
+
+@keyframes iconIn{
+  to{opacity:1;transform:scale(1) translateY(0)}
+}
+@keyframes ring{
+  0%{opacity:.55;transform:scale(1)}
+  70%{opacity:0;transform:scale(1.55)}
+  100%{opacity:0;transform:scale(1.55)}
+}
+@keyframes fadeUp{
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes shimmer{
+  0%{transform:translateX(-110%)}
+  100%{transform:translateX(260%)}
+}
+
+/* ---- Timeline-Freeze (nur fuer die Vorschau) ---- */
+.freeze *{animation-play-state:paused!important}
+.freeze .icon-wrap img{animation-delay:calc(0ms - var(--seek))}
+.freeze .ring{animation-delay:calc(320ms - var(--seek))}
+.freeze .ring.r2{animation-delay:calc(1520ms - var(--seek))}
+.freeze .title{animation-delay:calc(430ms - var(--seek))}
+.freeze .bar{animation-delay:calc(820ms - var(--seek))}
+.freeze .bar i{animation-delay:calc(900ms - var(--seek))}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<!--STAGE-START-->
+<div class="stage">
+  <div class="icon-wrap">
+    <div class="ring"></div>
+    <div class="ring r2"></div>
+    <img src="assets/icon.png" alt="Luxbox-Icon">
+  </div>
+  <h1 class="title">Lux<span>box</span></h1>
+  <div class="bar"><i></i></div>
+</div>
+<!--STAGE-END-->
+<script>
+// Vorschau-Modus: boot.html?freeze=1050 friert die Animation auf t=1050ms ein
+var q = new URLSearchParams(location.search);
+if (q.has('freeze')) {
+  document.documentElement.classList.add('freeze');
+  document.documentElement.style.setProperty('--seek', q.get('freeze') + 'ms');
+}
+</script>
+</body>
+</html>

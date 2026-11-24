@@ -1,0 +1,52 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+// Fügt das Element <browser-action-list> ein (Symbole und Popups der Erweiterungen)
+(() => {
+  let lastError = null;
+  for (const mod of ['electron-chrome-extensions/browser-action', 'electron-chrome-extensions/dist/browser-action']) {
+    try {
+      require(mod).injectBrowserAction();
+      return;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  console.error('browser-action konnte nicht geladen werden (läuft "npm install"?):', lastError);
+})();
+
+const on = (channel, cb) => {
+  const handler = (_event, payload) => cb(payload);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+};
+
+contextBridge.exposeInMainWorld('api', {
+  list: () => ipcRenderer.invoke('apps:list'),
+  add: (data) => ipcRenderer.invoke('apps:add', data),
+  update: (id, data) => ipcRenderer.invoke('apps:update', id, data),
+  remove: (id) => ipcRenderer.invoke('apps:remove', id),
+  activate: (id) => ipcRenderer.invoke('apps:activate', id),
+  reload: (id) => ipcRenderer.invoke('apps:reload', id),
+  reorder: (ids) => ipcRenderer.invoke('apps:reorder', ids),
+  contextMenu: (id) => ipcRenderer.invoke('apps:context-menu', id),
+  listExtensions: () => ipcRenderer.invoke('ext:list'),
+  addExtension: () => ipcRenderer.invoke('ext:add'),
+  removeExtension: (dir) => ipcRenderer.invoke('ext:remove', dir),
+  installExtension: (input, store) => ipcRenderer.invoke('ext:install', input, store),
+  openStore: (kind) => ipcRenderer.invoke('ext:open-store', kind),
+  onExtensionsChanged: (cb) => on('ext:changed', cb),
+  onOpenExtensions: (cb) => on('ui:open-extensions', cb),
+  syncStatus: () => ipcRenderer.invoke('sync:status'),
+  syncChoose: () => ipcRenderer.invoke('sync:choose'),
+  syncNow: () => ipcRenderer.invoke('sync:now'),
+  syncDisable: () => ipcRenderer.invoke('sync:disable'),
+  onSyncStatus: (cb) => on('sync:status', cb),
+  onOpenSync: (cb) => on('ui:open-sync', cb),
+  onExtensionsLoaded: (cb) => on('ext:loaded', cb),
+  setOverlay: (open) => ipcRenderer.invoke('ui:overlay', open),
+
+  onState: (cb) => on('app:state', cb),
+  onActive: (cb) => on('app:active', cb),
+  onChanged: (cb) => on('apps:changed', cb),
+  onEditRequest: (cb) => on('app:edit-request', cb),
+});

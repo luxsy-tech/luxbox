@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" xmlns:c2pa="http://c2pa.org/manifest">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2f3a"/>
+      <stop offset="1" stop-color="#14161b"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="512" cy="470" r="330" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9af2e6" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#5ec2b7" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8fe8dc"/>
+      <stop offset="1" stop-color="#5ec2b7"/>
+    </linearGradient>
+    <linearGradient id="left" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a9d94"/>
+      <stop offset="1" stop-color="#27736d"/>
+    </linearGradient>
+    <linearGradient id="right" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a7a73"/>
+      <stop offset="1" stop-color="#1b514d"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+
+  <!-- Licht im Inneren der Box -->
+  <polygon points="512,230 763,375 512,520 261,375" fill="url(#glow)"/>
+
+  <!-- Körper -->
+  <g stroke="#1b1e25" stroke-width="14" stroke-linejoin="round">
+    <polygon points="261,375 512,520 512,810 261,665" fill="url(#left)"/>
+    <polygon points="763,375 512,520 512,810 763,665" fill="url(#right)"/>
+    <!-- angehobener Deckel -->
+    <polygon points="512,176 763,321 512,466 261,321" fill="url(#lid)"/>
+  </g>
+
+  <!-- Hinweispunkt wie das Badge in der Seitenleiste -->
+  <circle cx="800" cy="236" r="58" fill="#f2a541" stroke="#1b1e25" stroke-width="14"/>
+</svg>

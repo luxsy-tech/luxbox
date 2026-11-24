@@ -1,0 +1,340 @@
+const PRESETS = [
+  { label: 'Eigene Adresse', name: '', url: '' },
+  { label: 'WhatsApp', name: 'WhatsApp', url: 'https://web.whatsapp.com' },
+  { label: 'Telegram', name: 'Telegram', url: 'https://web.telegram.org/k/' },
+  { label: 'Slack', name: 'Slack', url: 'https://app.slack.com/client' },
+  { label: 'Discord', name: 'Discord', url: 'https://discord.com/app' },
+  { label: 'Microsoft Teams', name: 'Teams', url: 'https://teams.microsoft.com' },
+  { label: 'Gmail', name: 'Gmail', url: 'https://mail.google.com' },
+  { label: 'Outlook', name: 'Outlook', url: 'https://outlook.office.com/mail' },
+];
+
+const $ = (id) => document.getElementById(id);
+const listEl = $('apps');
+const dlg = $('dlg');
+
+let apps = [];
+let activeId = null;
+let activeTabId = null;
+let activePartition = null;
+let extensionCount = 0;
+let editingId = null;
+let dragId = null;
+
+/* ---------- Rendering ---------- */
+
+function buildButton(a) {
+  const btn = document.createElement('button');
+  btn.className = 'app';
+  btn.dataset.id = a.id;
+  btn.title = a.name;
+  btn.setAttribute('aria-label', a.name);
+  btn.draggable = true;
+  if (a.id === activeId) btn.classList.add('active');
+  if (a.loading) btn.classList.add('loading');
+  if (a.muted) btn.classList.add('muted');
+
+  if (a.favicon) {
+    const img = document.createElement('img');
+    img.src = a.favicon;
+    img.alt = '';
+    img.onerror = () => { img.remove(); btn.prepend(document.createTextNode(initial(a.name))); };
+    btn.append(img);
+  } else {
+    btn.append(document.createTextNode(initial(a.name)));
+  }
+
+  if (a.badge > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = a.badge > 99 ? '99+' : String(a.badge);
+    btn.append(badge);
+  }
+
+  btn.addEventListener('click', () => window.api.activate(a.id));
+  btn.addEventListener('contextmenu', (e) => { e.preventDefault(); window.api.contextMenu(a.id); });
+
+  btn.addEventListener('dragstart', () => { dragId = a.id; btn.classList.add('dragging'); });
+  btn.addEventListener('dragend', () => { dragId = null; btn.classList.remove('dragging'); });
+  btn.addEventListener('dragover', (e) => e.preventDefault());
+  btn.addEventListener('drop', (e) => { e.preventDefault(); moveApp(dragId, a.id); });
+  if (a.hibernated) {
+    btn.classList.add('hibernated');
+    btn.title = `${a.name} (im Ruhezustand)`;
+  }
+  return btn;
+}
+
+function render() {
+  listEl.replaceChildren(...apps.map(buildButton));
+  $('empty').hidden = apps.length > 0;
+}
+
+// Nur das betroffene Symbol neu aufbauen, nicht die ganze Leiste
+function patchApp(a) {
+  const old = listEl.querySelector(`[data-id="${CSS.escape(a.id)}"]`);
+  if (old) old.replaceWith(buildButton(a));
+  else render();
+}
+
+const initial = (name) => (name.trim()[0] || '?').toUpperCase();
+
+let actionsEl = $('actions');
+
+// Zeigt die Erweiterungs-Symbole der aktiven App unten links
+function updateActions() {
+  if (!extensionCount || !activeId || activeTabId == null || !activePartition) {
+    actionsEl.hidden = true;
+    return;
+  }
+  actionsEl.setAttribute('partition', activePartition);
+  actionsEl.setAttribute('tab', String(activeTabId));
+  actionsEl.hidden = false;
+}
+
+// Erzeugt die Symbolleiste neu, damit sie die Erweiterungen der Sitzung frisch abfragt
+function refreshActions() {
+  const fresh = document.createElement('browser-action-list');
+  fresh.id = 'actions';
+  fresh.setAttribute('alignment', 'top right');
+  fresh.hidden = true;
+  actionsEl.replaceWith(fresh);
+  actionsEl = fresh;
+  updateActions();
+}
+
+function applyState(state) {
+  apps = state.apps;
+  activeId = state.activeId;
+  activeTabId = state.activeTabId ?? activeTabId;
+  extensionCount = state.extensionCount ?? extensionCount;
+  activePartition = apps.find((a) => a.id === activeId)?.partition ?? null;
+  render();
+  updateActions();
+}
+
+async function moveApp(fromId, toId) {
+  if (!fromId || fromId === toId) return;
+  const ids = apps.map((a) => a.id);
+  ids.splice(ids.indexOf(fromId), 1);
+  ids.splice(ids.indexOf(toId), 0, fromId);
+  applyState(await window.api.reorder(ids));
+}
+
+/* ---------- Dialog ---------- */
+
+function openDialog(app) {
+  editingId = app ? app.id : null;
+  $('dlgTitle').textContent = app ? 'App bearbeiten' : 'App hinzufügen';
+  $('presetField').hidden = Boolean(app);
+  $('name').value = app ? app.name : '';
+  $('url').value = app ? app.url : '';
+  $('ignore').checked = app ? app.ignoreCerts === true : false;
+  $('own').checked = app ? app.ownSession !== false : false;
+  $('keep').checked = app ? app.keepAlive === true : false;
+  $('preset').value = '0';
+  $('error').textContent = '';
+  window.api.setOverlay(true);   // native Ansicht ausblenden, sonst verdeckt sie den Dialog
+  dlg.showModal();
+  $('name').focus();
+}
+
+dlg.addEventListener('close', () => window.api.setOverlay(false));
+
+PRESETS.forEach((p, i) => {
+  const opt = document.createElement('option');
+  opt.value = String(i);
+  opt.textContent = p.label;
+  $('preset').append(opt);
+});
+
+$('preset').addEventListener('change', () => {
+  const p = PRESETS[Number($('preset').value)];
+  $('name').value = p.name;
+  $('url').value = p.url;
+});
+
+$('add').addEventListener('click', () => openDialog(null));
+$('cancel').addEventListener('click', () => dlg.close());
+
+$('save').addEventListener('click', async () => {
+  const data = {
+    name: $('name').value, url: $('url').value, ignoreCerts: $('ignore').checked, ownSession: $('own').checked, keepAlive: $('keep').checked,
+  };
+  try {
+    const state = editingId
+      ? await window.api.update(editingId, data)
+      : await window.api.add(data);
+    applyState(state);
+    dlg.close();
+  } catch (err) {
+    $('error').textContent = err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
+  }
+});
+
+dlg.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') $('save').click();
+});
+
+/* ---------- Events aus dem Hauptprozess ---------- */
+
+window.api.onState((s) => {
+  const a = apps.find((x) => x.id === s.id);
+  if (!a) return;
+  Object.assign(a, s);
+  patchApp(a);
+});
+window.api.onActive((p) => {
+  activeId = p ? p.id : null;
+  activeTabId = p ? p.tabId : null;
+  activePartition = p ? p.partition : null;
+  render();
+  updateActions();
+});
+window.api.onChanged(applyState);
+window.api.onEditRequest((id) => {
+  const a = apps.find((x) => x.id === id);
+  if (a) openDialog(a);
+});
+
+window.api.list().then(applyState);
+
+/* ---------- Erweiterungen ---------- */
+
+const extDlg = $('extDlg');
+
+function renderExtensions(list) {
+  extensionCount = list.length;
+  updateActions();
+  const ul = $('extList');
+  ul.replaceChildren();
+  if (!list.length) {
+    const li = document.createElement('li');
+    li.className = 'none';
+    li.textContent = 'Noch keine Erweiterungen geladen.';
+    ul.append(li);
+    return;
+  }
+  for (const ext of list) {
+    const li = document.createElement('li');
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    const name = document.createElement('strong');
+    name.textContent = ext.version ? `${ext.name} ${ext.version}` : ext.name;
+    const where = document.createElement('span');
+    where.textContent = ext.store ? `${ext.store === 'edge' ? 'Edge Add-ons' : 'Chrome Web Store'} · ${ext.id}` : ext.path;
+    const status = document.createElement('span');
+    status.className = ext.error ? 'status bad' : 'status';
+    status.textContent = ext.error
+      ? `Nicht geladen: ${ext.error}`
+      : (ext.loaded ? 'In der aktuellen Sitzung aktiv' : 'Wird geladen oder in dieser Sitzung noch nicht aktiv');
+    meta.append(name, where, status);
+    const del = document.createElement('button');
+    del.textContent = 'Entfernen';
+    del.addEventListener('click', async () => renderExtensions(await window.api.removeExtension(ext.path)));
+    li.append(meta, del);
+    ul.append(li);
+  }
+}
+
+async function openExtDialog() {
+  $('extError').textContent = '';
+  renderExtensions(await window.api.listExtensions());
+  if (!extDlg.open) {
+    window.api.setOverlay(true);
+    extDlg.showModal();
+  }
+}
+
+$('extBtn').addEventListener('click', openExtDialog);
+window.api.onOpenExtensions(openExtDialog);
+window.api.onExtensionsLoaded(({ partition }) => { if (partition === activePartition) refreshActions(); });
+window.api.onExtensionsChanged(renderExtensions);
+
+$('extClose').addEventListener('click', () => extDlg.close());
+extDlg.addEventListener('close', () => window.api.setOverlay(false));
+
+$('extFolder').addEventListener('click', async () => {
+  const res = await window.api.addExtension();
+  $('extError').textContent = res.error || '';
+  renderExtensions(res.extensions);
+});
+
+async function installFromInput() {
+  const input = $('storeInput').value.trim();
+  if (!input) return;
+  const btn = $('storeInstall');
+  btn.disabled = true;
+  btn.textContent = 'Lädt …';
+  $('extError').textContent = '';
+  try {
+    const res = await window.api.installExtension(input, $('storeKind').value);
+    $('extError').textContent = res.error || '';
+    if (!res.error) $('storeInput').value = '';
+    renderExtensions(res.extensions);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Installieren';
+  }
+}
+$('storeInstall').addEventListener('click', installFromInput);
+$('storeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') installFromInput(); });
+$('openChrome').addEventListener('click', () => window.api.openStore('chrome'));
+$('openEdge').addEventListener('click', () => window.api.openStore('edge'));
+
+/* ---------- Config-Sync ---------- */
+
+const syncDlg = $('syncDlg');
+
+function line(parent, text, cls) {
+  const div = document.createElement('div');
+  if (cls) div.className = cls;
+  div.textContent = text;
+  parent.append(div);
+  return div;
+}
+
+function renderSync(st) {
+  const box = $('syncStatus');
+  box.replaceChildren();
+  $('syncError').textContent = st.error || '';
+  $('syncOff').hidden = !st.enabled;
+  $('syncNow').hidden = !st.enabled;
+
+  if (!st.enabled) {
+    line(box, 'Der Sync ist nicht eingerichtet.', 'muted');
+    return;
+  }
+  line(box, `Ordner: ${st.folder}`);
+  line(box, `Dieses Gerät: ${st.deviceName}`);
+  line(box, st.lastSync ? `Zuletzt abgeglichen: ${new Date(st.lastSync).toLocaleString()}` : 'Noch nicht abgeglichen', 'muted');
+  if (st.devices.length) {
+    line(box, 'Andere Geräte:', 'muted');
+    const ul = document.createElement('ul');
+    for (const d of st.devices) {
+      const li = document.createElement('li');
+      li.textContent = d.writtenAt ? `${d.name}, Stand ${new Date(d.writtenAt).toLocaleString()}` : d.name;
+      ul.append(li);
+    }
+    box.append(ul);
+  } else {
+    line(box, 'Noch keine anderen Geräte gefunden.', 'muted');
+  }
+}
+
+async function openSyncDialog() {
+  renderSync(await window.api.syncStatus());
+  if (!syncDlg.open) {
+    window.api.setOverlay(true);
+    syncDlg.showModal();
+  }
+}
+
+$('syncBtn').addEventListener('click', openSyncDialog);
+window.api.onOpenSync(openSyncDialog);
+window.api.onSyncStatus((st) => { if (syncDlg.open) renderSync(st); });
+syncDlg.addEventListener('close', () => window.api.setOverlay(false));
+$('syncClose').addEventListener('click', () => syncDlg.close());
+$('syncChoose').addEventListener('click', async () => renderSync(await window.api.syncChoose()));
+$('syncNow').addEventListener('click', async () => renderSync(await window.api.syncNow()));
+$('syncOff').addEventListener('click', async () => renderSync(await window.api.syncDisable()));
