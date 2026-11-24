@@ -104,6 +104,8 @@
   "ctx.mute": "Mute",
   "ctx.edit": "Edit …",
   "ctx.remove": "Remove …",
+  "ctx.copyImage": "Copy image",
+  "ctx.copySrc": "Copy image address",
 
   "dialog.remove": "Remove",
   "dialog.removeMessage": "Remove \"{name}\"?",

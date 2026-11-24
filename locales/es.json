@@ -104,6 +104,8 @@
   "ctx.mute": "Silenciar",
   "ctx.edit": "Editar …",
   "ctx.remove": "Quitar …",
+  "ctx.copyImage": "Copiar imagen",
+  "ctx.copySrc": "Copiar dirección de la imagen",
 
   "dialog.remove": "Quitar",
   "dialog.removeMessage": "¿Quitar „{name}“?",

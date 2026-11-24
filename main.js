@@ -1,6 +1,6 @@
 const {
   app, BrowserWindow, WebContentsView, ipcMain, Menu, shell, session, dialog, net, nativeImage, powerMonitor,
-  clipboard, globalShortcut, powerSaveBlocker, Notification,
+  clipboard, globalShortcut, powerSaveBlocker, Notification, ClipboardItem,
 } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -105,6 +105,7 @@ const loadedExt = new Map();      // partition -> Map(path -> extensionId)
 const extSystems = new Map();     // partition -> ElectronChromeExtensions (eine Instanz je Sitzung)
 let storeWin = null;
 const views = new Map();          // appId -> WebContentsView (lazy erzeugt)
+let lastCtxMenu = null;           // letzter Rechtsklick in einer App: { wc, x, y } fuer "Bild kopieren"
 const runtime = new Map();        // appId -> { badge, favicon, loading }
 const wcToApp = new Map();        // webContents.id -> appId
 const lastActive = new Map();     // appId -> Zeitpunkt, an dem die App zuletzt verlassen wurde
@@ -904,11 +905,15 @@ function ensureView(id) {
   wc.on('context-menu', (_e, params) => {
     if (!win || win.isDestroyed()) return;
     const b = view.getBounds();
+    // Quelle merken: "Bild kopieren" braucht die Koordinaten und das WebContents
+    // genau dieser Ansicht (Koordinaten relativ zum Viewport, wie copyImageAt sie erwartet)
+    lastCtxMenu = { wc, x: params.x || 0, y: params.y || 0 };
     send('ui:context-menu', {
       x: b.x + (params.x || 0),
       y: b.y + (params.y || 0),
       flags: params.editFlags || {},
       where: 'view',
+      media: { type: params.mediaType || 'none', src: params.srcURL || '' },
     });
   });
 
@@ -1513,6 +1518,21 @@ const menuActions = {
   },
   language: (lang) => changeLanguage(lang),
   checkUpdate: () => checkForUpdates(true),
+  // Bild aus der App-Ansicht in die Zwischenablage - copyImageAt arbeitet wie
+  // Chroma-Kontextmenue positionsbasiert im Renderer und holt auch eingebettete
+  // und cross-origin Bilder, ohne dass die Seite etwas mitmachen muss.
+  copyImage: () => {
+    const src = lastCtxMenu;
+    if (!src || !src.wc || src.wc.isDestroyed()) return;
+    try { src.wc.copyImageAt(src.x, src.y); } catch (err) {
+      console.warn('[copyImage]', err && err.message);
+    }
+  },
+  // Nur die Adresse des Bildes (URL in die Zwischenablage)
+  copyImageSrc: (value) => {
+    if (!value) return;
+    Promise.resolve(clipboard.writeText(String(value))).catch(() => {});
+  },
   theme: (name) => changeTheme(name),
   rail: (pos) => changeRail(pos),
   quit: () => app.quit(),
@@ -2089,7 +2109,12 @@ ipcMain.handle('ui:badge', (_e, dataUrl, desc) => {
 ipcMain.handle('apps:drop', (_e, id, files) => {
   const paths = Array.isArray(files) ? files.filter((p) => typeof p === 'string' && fs.existsSync(p)) : [];
   if (!paths.length || !findApp(id)) return;
-  clipboard.write({ files: paths });
+  // Electron 45: clipboard ist W3C-API - "files" gibt es nicht mehr. text/uri-list
+  // bildet auf das native Format ab (CF_HDROP unter Windows) und traegt echte Dateien.
+  const uris = paths.map((p) => 'file:///' + p.replace(/\\/g, '/')).join('\r\n');
+  Promise.resolve(
+    clipboard.write([new ClipboardItem({ 'text/uri-list': uris })]),
+  ).catch(() => {});
   activate(id);
   const wc = views.get(id)?.webContents;
   if (wc && !wc.isDestroyed()) {

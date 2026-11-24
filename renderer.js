@@ -916,11 +916,20 @@ function shellEditFlags() {
   };
 }
 
-function contextItems(flags, where) {
+function contextItems(flags, where, media) {
   const edit = (role, labelKey, flag) => ({
     id: 'edit', labelKey, value: role, where, enabled: Boolean(flags[flag]),
   });
+  // Bei Bildern bringt die Textmarke nichts - eigener Eintrag mit Bild-API.
+  // canvas kann copyImageAt auch (positionsbasiert), eine Adresse gibt es nur bei echten Bildern.
+  const isPic = where === 'view' && media && (media.type === 'image' || media.type === 'canvas');
+  const hasSrc = isPic && media.type === 'image' && /^https?:\/\//i.test(media.src || '');
   return [
+    ...(isPic ? [
+      { id: 'copyImage', labelKey: 'ctx.copyImage' },
+      ...(hasSrc ? [{ id: 'copyImageSrc', labelKey: 'ctx.copySrc', value: media.src }] : []),
+      { sep: true },
+    ] : []),
     edit('undo', 'menu.undo', 'canUndo'),
     edit('redo', 'menu.redo', 'canRedo'),
     { sep: true },
@@ -935,14 +944,14 @@ function contextItems(flags, where) {
   ];
 }
 
-async function openContextMenu(x, y, flags = {}, where = 'shell') {
+async function openContextMenu(x, y, flags = {}, where = 'shell', media = null) {
   closeMenu();
   closeGroupFlyout();
   if (!(await openOverlay())) return;
   const panel = document.createElement('div');
   panel.className = 'menu-panel';
   panel.setAttribute('role', 'menu');
-  buildItems(contextItems(flags, where), panel);
+  buildItems(contextItems(flags, where, media), panel);
   panel.style.position = 'fixed';
   menubar.append(panel);   // renderPanels() raeumt beim Schliessen alles ab
   panel.style.left = `${x + panel.offsetWidth > window.innerWidth - 8 ? Math.max(4, window.innerWidth - panel.offsetWidth - 8) : x}px`;
@@ -955,7 +964,7 @@ document.addEventListener('contextmenu', (e) => {
   openContextMenu(e.clientX, e.clientY, shellEditFlags(), 'shell');
 });
 if (window.api.onContextMenu) {
-  window.api.onContextMenu(({ x, y, flags, where }) => openContextMenu(x, y, flags, where));
+  window.api.onContextMenu(({ x, y, flags, where, media }) => openContextMenu(x, y, flags, where, media));
 }
 
 function toggleMenu(i) {
