@@ -11,6 +11,7 @@ const sync = require('./sync');
 const { parseStoreInput, installFromStore, removeInstalled, readManifest } = require('./webstore');
 const i18n = require('./i18n.js');
 const t = (key, vars) => i18n.t(key, vars);
+const { clampPopupToScreen } = require('./popup-clamp.js');
 
 // --- Fremd-Meldungen in der Konsole reduzieren ---
 // 1) Chromium-eigene Logs (Extension-Errors der Store-Erweiterungen, CSP-Hinweise von
@@ -650,6 +651,9 @@ function getExtSystem(ses, partition) {
     createWindow: async (details) => openWindow(details),
     removeWindow: (w) => { if (w !== win && !w.isDestroyed()) w.close(); },
   });
+  // Popups an die Bildschirmkante klammern (sonst ragt z.B. Bitwarden halb
+  // ausserhalb - siehe popup-clamp.js). Haengt an jedem neuen Popup-Event.
+  system.on('browser-action-popup-created', clampPopupToScreen);
   extSystems.set(partition, system);
   return system;
 }
