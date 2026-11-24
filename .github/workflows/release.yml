@@ -5,9 +5,9 @@
 #   - Push eines Tags  v*         -> Bauen + Release anlegen
 #   - manuell (workflow_dispatch) -> nur Bauen, Artefakte im Workflow-Lauf
 #
-# Ablauf: Matrix-Job (win/linux/mac) baut mit --publish never und laedt die
-# Artefakte hoch, ein folgender Release-Job erzeugt das Release einmal zentral
-# (zwei parallele Jobs duerfen dasselbe Release nie gleichzeitig anlegen).
+# Ablauf: Der Matrix-Job (win/linux) baut mit --publish never und laedt die
+# Artefakte hoch, der Release-Job erzeugt das Release zentral. macOS laeuft
+# ALS EIGENER JOB (siehe unten), wird aber ebenfalls vom Release mitgeholt.
 #
 # WARUM ubuntu-24.04 (nicht ubuntu-latest):
 # Seit Okt. 2026 liefert ubuntu-latest ein 26.04-Image mit rpm 6.0.1. Diese
@@ -17,14 +17,21 @@
 #
 # WARUM macos-15 (nicht macos-latest): gleiche Lektion wie ubuntu-latest -
 # gepinnte Images ueberraschen nicht mit Toolchain-Wechseln. macos-15 ist
-# arm64, existiert stabil und reicht fuer x64+binaere Cross-Builds (electron
-# baut x64 aus, ohne x64-Binaere auszufuehren).
+# arm64 und baut x64+arm64 per Cross-Build (ohne x64-Binaere auszufuehren).
 #
-# WARUM rpm UND macOS in eigenen Schritten mit continue-on-error:
+# WARUM macOS ein EIGENER JOB ist (nicht Matrix-Teil):
+# GitHub liefert macOS-arm64-Runner nur nach Kapazitaet. Beleg aus Lauf
+# 45465204294: "The job was not acquired by Runner of type hosted even after
+# multiple attempts" -> nach 15 Min. Warteschlange cancelled, OHNE dass ein
+# Schritt lief. Waere das ein Tag-Lauf gewesen, haette die Matrix-Abhaengigkeit
+# "needs: build" das GESAMTE Release gekillt, obwohl Windows+Linux gruen waren.
+# Jetzt: build (win/linux) ist die einzige harte Voraussetzung fuer das
+# Release, build_mac wird nur ABGEWARTET (needs) und sein Ergebnis IGNORIERT.
+# Ein macOS-Ausfall kostet also hoechstens die .dmg, nie das Release.
+#
+# WARUM rpm in einem eigenen Schritt mit continue-on-error:
 # Eine einzelne Paketform darf das gesamte Release nie blockieren - sonst
-# fehlen Windows und AppImage, obwohl die einwandfrei gebaut waeren. macOS
-# laeuft zusaetzlich unsigned (kein Apple-Developer-Account) und ist damit
-# der neuete und noch unerprobte Zweig der Pipeline.
+# fehlen Windows und AppImage, obwohl die einwandfrei gebaut waeren.
 
 name: Release
 
@@ -46,8 +53,6 @@ jobs:
             artifact: windows
           - os: ubuntu-24.04
             artifact: linux
-          - os: macos-15
-            artifact: mac
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -97,35 +102,81 @@ jobs:
         if: runner.os == 'Windows'
         run: npm run dist:win:machine -- --publish never
 
-      # macOS: DMG fuer x64 + arm64, unsigned (kein Apple-Zertifikat).
-      # CSC_IDENTITY_AUTO_DISCOVERY=false verhindert, dass electron-builder
-      # erfolglos nach einem Signatur-Zertifikat sucht und deshalb fehlschlaegt.
-      - name: Bauen (macOS DMG, unsigned)
-        if: runner.os == 'macOS'
-        continue-on-error: true
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npx electron-builder --mac --publish never
-
       - name: Artefakte hochladen
         uses: actions/upload-artifact@v6
         with:
           name: dist-${{ matrix.artifact }}
-          # macOS darf leer bleiben (continue-on-error beim Build), sonst
-          # wuerde ein komplett gescheiterter Mac-Build das Release blockieren.
-          if-no-files-found: ${{ matrix.artifact == 'mac' && 'warn' || 'error' }}
+          if-no-files-found: error
           path: |
             dist/*.exe
             dist/*.blockmap
             dist/*.AppImage
             dist/*.deb
             dist/*.rpm
+            dist/latest*.yml
+
+  # Eigenstaendiger Job: siehe Kopfkommentar "WARUM macOS ein EIGENER JOB ist".
+  # continue-on-error auf JOB-Ebene: ein Ausfall darf den Gesamtlauf nicht rot
+  # machen, und der Release-Job prueft bewusst NICHT auf dieses Ergebnis.
+  build_mac:
+    runs-on: macos-15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhaengigkeiten installieren
+        run: npm ci
+
+      - name: Tag gegen package.json pruefen
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          want="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$want" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME passt nicht zur Version in package.json ($want)"
+            exit 1
+          fi
+          echo "Tag und Version passen: $want"
+
+      # macOS: DMG fuer x64 + arm64, unsigned (kein Apple-Zertifikat).
+      # CSC_IDENTITY_AUTO_DISCOVERY=false verhindert, dass electron-builder
+      # erfolglos nach einem Signatur-Zertifikat sucht und deshalb fehlschlaegt.
+      # Step-Ebene continue-on-error: der Upload darf trotzdem laufen.
+      - name: Bauen (macOS DMG, unsigned)
+        continue-on-error: true
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --mac --publish never
+
+      # warn statt error: ein Mac-Build ohne Ergebnis ist akzeptabel,
+      # das Release bekommt dann schlicht keine .dmg.
+      - name: Artefakte hochladen
+        uses: actions/upload-artifact@v6
+        with:
+          name: dist-mac
+          if-no-files-found: warn
+          path: |
             dist/*.dmg
             dist/latest*.yml
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    # WICHTIG: bewusst NICHT "success()" (Default) - das wuerde jeden Fehler
+    # von build ODER build_mac zum Skipped fuehren. Stattdessen:
+    #  - gewartet wird auf BEIDE Jobs (needs, inkl. macOS-Ausfall-Wartezeit)
+    #  - freigegeben wird nur, wenn win/linux sicher success sind
+    #  - build_mac wird ignoriert (Ergebnis egal, auch cancelled/failure)
+    #  - !cancelled() verhindert, dass ein manuell abgebrochener Lauf
+    #    trotzdem ein Release erzeugt
+    if: |
+      !cancelled() &&
+      startsWith(github.ref, 'refs/tags/v') &&
+      needs.build.result == 'success'
+    needs: [build, build_mac]
     runs-on: ubuntu-latest
     steps:
       - name: Artefakte herunterladen
