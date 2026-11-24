@@ -1,13 +1,23 @@
-# Baut Luxbox für Windows und Linux und legt bei jedem Version-Tag
+# Baut Luxbox fuer Windows und Linux und legt bei jedem Version-Tag
 # ein GitHub-Release mit den Installern + Update-Metadaten (latest*.yml) an.
 #
 # Ausloeser:
-#   - Push eines Tags  v*        -> Bauen + Release anlegen
+#   - Push eines Tags  v*         -> Bauen + Release anlegen
 #   - manuell (workflow_dispatch) -> nur Bauen, Artefakte im Workflow-Lauf
 #
 # Ablauf: Matrix-Job (win/linux) baut mit --publish never und laedt die
 # Artefakte hoch, ein folgender Release-Job erzeugt das Release einmal zentral
 # (zwei parallele Jobs duerfen dasselbe Release nie gleichzeitig anlegen).
+#
+# WARUM ubuntu-24.04 (nicht ubuntu-latest):
+# Seit Okt. 2026 liefert ubuntu-latest ein 26.04-Image mit rpm 6.0.1. Diese
+# Version ignoriert das "--define buildroot" von electron-builders gebuendeltem
+# fpm 1.9.3 -> rpmbuild bricht mit "exit code 1" ab (alle Dateien "not found").
+# 24.04 hat rpm 4.18 und baut rpm-Pakete einwandfrei.
+#
+# WARUM rpm in einem eigenen Schritt mit continue-on-error:
+# Eine einzelne Paketform darf das gesamte Release nie blockieren - sonst
+# fehlen Windows und AppImage, obwohl die einwandfrei gebaut waeren.
 
 name: Release
 
@@ -26,10 +36,8 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            build_cmd: npm run dist:win:machine -- --publish never
             artifact: windows
-          - os: ubuntu-latest
-            build_cmd: npm run dist:linux -- --publish never
+          - os: ubuntu-24.04
             artifact: linux
     runs-on: ${{ matrix.os }}
     steps:
@@ -63,8 +71,22 @@ jobs:
           fi
           echo "Tag und Version passen: $want"
 
-      - name: Bauen
-        run: ${{ matrix.build_cmd }}
+      # rpm ZUERST: electron-builder schreibt latest-linux.yml pro Lauf neu.
+      # Der finale Lauf (AppImage) muss daher der letzte sein, damit die
+      # Update-Metadaten den AppImage-Eintrag enthalten, den electron-updater
+      # fuer Linux-Updates benutzt. Ein rpm-Fehler darf den Job nicht killen.
+      - name: Bauen (rpm, optional)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: npx electron-builder --linux rpm --publish never
+
+      - name: Bauen (AppImage und deb)
+        if: runner.os == 'Linux'
+        run: npx electron-builder --linux AppImage deb --publish never
+
+      - name: Bauen (Windows-Installer, maschinenweit)
+        if: runner.os == 'Windows'
+        run: npm run dist:win:machine -- --publish never
 
       - name: Artefakte hochladen
         uses: actions/upload-artifact@v4
