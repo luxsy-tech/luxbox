@@ -15,9 +15,19 @@
 # fpm 1.9.3 -> rpmbuild bricht mit "exit code 1" ab (alle Dateien "not found").
 # 24.04 hat rpm 4.18 und baut rpm-Pakete einwandfrei.
 #
-# WARUM macos-15 (nicht macos-latest): gleiche Lektion wie ubuntu-latest -
-# gepinnte Images ueberraschen nicht mit Toolchain-Wechseln. macos-15 ist
-# arm64 und baut x64+arm64 per Cross-Build (ohne x64-Binaere auszufuehren).
+# WARUM macos-15-intel (nicht macos-15/macos-latest):
+# Zwei Gruende. 1) KAPAZITAET: Dreimal hintereinander kam der arm64-Job nie
+# an einen Runner ("The job was not acquired by Runner of type hosted ... due
+# to capacity constraints, jobs targeting macOS arm64 runners", Laeufe
+# 45465204294 / 45468834767 / 45471968079 - je 15 Min. Warteschlange, dann
+# cancelled ohne einen einzigen Schritt). macos-15-intel laeuft auf einem
+# GETRENNTE Pool und ist laut offizieller Runner-Doku ein STANDARD-Runner
+# fuer oeffentliche Repos (4 CPU/14 GB, kostenlos und unbegrenzt).
+# 2) PINS: -latest wauerde zwischen macOS 15/26 umspringen (gleiche Lektion
+# wie ubuntu-latest - gepinnte Images ueberraschen nicht mit Toolchain-
+# Wechseln). macos-15-intel ist als letztes x86_64-Image bis Aug. 2027
+# verfuegbar und baut x64+arm64 per Cross-Build (arm64-Binaries werden nur
+# gepackt, nicht ausgefuehrt - ein arm64-Runner waere dazu nie noetig).
 #
 # WARUM macOS ein EIGENER JOB ist (nicht Matrix-Teil):
 # GitHub liefert macOS-arm64-Runner nur nach Kapazitaet. Beleg aus Lauf
@@ -119,7 +129,7 @@ jobs:
   # continue-on-error auf JOB-Ebene: ein Ausfall darf den Gesamtlauf nicht rot
   # machen, und der Release-Job prueft bewusst NICHT auf dieses Ergebnis.
   build_mac:
-    runs-on: macos-15
+    runs-on: macos-15-intel
     continue-on-error: true
     steps:
       - uses: actions/checkout@v5
