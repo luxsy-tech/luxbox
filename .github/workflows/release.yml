@@ -115,13 +115,17 @@ jobs:
       - name: Release anlegen oder aktualisieren
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           ls -lh dist/
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+          # GH_REPO setzt den Ziel-Repo explizit - der Job hat kein Git-Checkout,
+          # an dem sich gh sonst orientieren wuerde.
+          if gh release view "$GITHUB_REF_NAME" --repo "$GH_REPO" >/dev/null 2>&1; then
             echo "Release existiert bereits - Artefakte werden ersetzt."
-            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber --repo "$GH_REPO"
           else
             gh release create "$GITHUB_REF_NAME" dist/* \
+              --repo "$GH_REPO" \
               --title "Luxbox $GITHUB_REF_NAME" \
               --generate-notes
           fi
