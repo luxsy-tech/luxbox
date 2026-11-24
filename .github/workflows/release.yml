@@ -1,11 +1,11 @@
-# Baut Luxbox fuer Windows und Linux und legt bei jedem Version-Tag
+# Baut Luxbox fuer Windows, Linux und macOS und legt bei jedem Version-Tag
 # ein GitHub-Release mit den Installern + Update-Metadaten (latest*.yml) an.
 #
 # Ausloeser:
 #   - Push eines Tags  v*         -> Bauen + Release anlegen
 #   - manuell (workflow_dispatch) -> nur Bauen, Artefakte im Workflow-Lauf
 #
-# Ablauf: Matrix-Job (win/linux) baut mit --publish never und laedt die
+# Ablauf: Matrix-Job (win/linux/mac) baut mit --publish never und laedt die
 # Artefakte hoch, ein folgender Release-Job erzeugt das Release einmal zentral
 # (zwei parallele Jobs duerfen dasselbe Release nie gleichzeitig anlegen).
 #
@@ -15,9 +15,16 @@
 # fpm 1.9.3 -> rpmbuild bricht mit "exit code 1" ab (alle Dateien "not found").
 # 24.04 hat rpm 4.18 und baut rpm-Pakete einwandfrei.
 #
-# WARUM rpm in einem eigenen Schritt mit continue-on-error:
+# WARUM macos-15 (nicht macos-latest): gleiche Lektion wie ubuntu-latest -
+# gepinnte Images ueberraschen nicht mit Toolchain-Wechseln. macos-15 ist
+# arm64, existiert stabil und reicht fuer x64+binaere Cross-Builds (electron
+# baut x64 aus, ohne x64-Binaere auszufuehren).
+#
+# WARUM rpm UND macOS in eigenen Schritten mit continue-on-error:
 # Eine einzelne Paketform darf das gesamte Release nie blockieren - sonst
-# fehlen Windows und AppImage, obwohl die einwandfrei gebaut waeren.
+# fehlen Windows und AppImage, obwohl die einwandfrei gebaut waeren. macOS
+# laeuft zusaetzlich unsigned (kein Apple-Developer-Account) und ist damit
+# der neuete und noch unerprobte Zweig der Pipeline.
 
 name: Release
 
@@ -39,6 +46,8 @@ jobs:
             artifact: windows
           - os: ubuntu-24.04
             artifact: linux
+          - os: macos-15
+            artifact: mac
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -88,17 +97,30 @@ jobs:
         if: runner.os == 'Windows'
         run: npm run dist:win:machine -- --publish never
 
+      # macOS: DMG fuer x64 + arm64, unsigned (kein Apple-Zertifikat).
+      # CSC_IDENTITY_AUTO_DISCOVERY=false verhindert, dass electron-builder
+      # erfolglos nach einem Signatur-Zertifikat sucht und deshalb fehlschlaegt.
+      - name: Bauen (macOS DMG, unsigned)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --mac --publish never
+
       - name: Artefakte hochladen
         uses: actions/upload-artifact@v6
         with:
           name: dist-${{ matrix.artifact }}
-          if-no-files-found: error
+          # macOS darf leer bleiben (continue-on-error beim Build), sonst
+          # wuerde ein komplett gescheiterter Mac-Build das Release blockieren.
+          if-no-files-found: ${{ matrix.artifact == 'mac' && 'warn' || 'error' }}
           path: |
             dist/*.exe
             dist/*.blockmap
             dist/*.AppImage
             dist/*.deb
             dist/*.rpm
+            dist/*.dmg
             dist/latest*.yml
 
   release:
