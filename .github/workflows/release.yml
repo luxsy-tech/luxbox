@@ -89,7 +89,7 @@ jobs:
         run: npm run dist:win:machine -- --publish never
 
       - name: Artefakte hochladen
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: dist-${{ matrix.artifact }}
           if-no-files-found: error
@@ -107,7 +107,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Artefakte herunterladen
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           path: dist
           merge-multiple: true
