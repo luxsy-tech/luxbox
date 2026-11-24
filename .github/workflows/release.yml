@@ -170,9 +170,13 @@ jobs:
     #  - gewartet wird auf BEIDE Jobs (needs, inkl. macOS-Ausfall-Wartezeit)
     #  - freigegeben wird nur, wenn win/linux sicher success sind
     #  - build_mac wird ignoriert (Ergebnis egal, auch cancelled/failure)
+    #  - always() ZWINGT die Auswertung: ohne Status-Check-Funktion wuerde
+    #    GitHub bei einem cancelled/capacity-Miss in needs stillschweigend
+    #    skippen, bevor der Ausdruck je geprueft wird (Default: success()).
     #  - !cancelled() verhindert, dass ein manuell abgebrochener Lauf
-    #    trotzdem ein Release erzeugt
+    #    trotzdem ein Release erzeugt.
     if: |
+      always() &&
       !cancelled() &&
       startsWith(github.ref, 'refs/tags/v') &&
       needs.build.result == 'success'
