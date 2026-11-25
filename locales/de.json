@@ -266,6 +266,13 @@
   "info.openFolder": "Konfigurationsordner öffnen",
 
   "menu.checkUpdate": "Nach Updates suchen …",
+  "find.title": "Suchen",
+  "find.placeholder": "Suchen …",
+  "find.prev": "Vorheriger Treffer",
+  "find.next": "Nächster Treffer",
+  "find.close": "Suche schließen",
+  "keys.c.find": "Strg + F",
+  "keys.v.find": "In Seite suchen",
   "update.none": "Kein neueres Update vorhanden.",
   "update.noneDetail": "Installiert ist Version {version}.",
   "update.found": "Update verfügbar",

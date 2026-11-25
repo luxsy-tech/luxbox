@@ -260,6 +260,13 @@
   "info.openFolder": "Abrir carpeta de configuración",
 
   "menu.checkUpdate": "Buscar actualizaciones …",
+  "find.title": "Buscar",
+  "find.placeholder": "Buscar …",
+  "find.prev": "Coincidencia anterior",
+  "find.next": "Coincidencia siguiente",
+  "find.close": "Cerrar búsqueda",
+  "keys.c.find": "Ctrl + F",
+  "keys.v.find": "Buscar en la página",
   "update.none": "No hay una actualización más reciente.",
   "update.noneDetail": "La versión instalada es {version}.",
   "update.found": "Actualización disponible",

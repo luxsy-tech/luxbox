@@ -1228,6 +1228,14 @@ function activate(id) {
   if (activeId && activeId !== id) lastActive.set(activeId, Date.now());
   lastActive.set(id, Date.now());
   activeId = id;
+  // Suchleiste der verlassenen App schliessen - Treffer und Zaehler gehoeren
+  // zur alten App und waeren danach falsch. stopFind auf der ALTEN Ansicht
+  // (aktiver Wechsel im Listener-Filter verhindert bereits neue Resultate).
+  if (prevId && prevId !== id) {
+    const prevView = views.get(prevId);
+    if (prevView && !prevView.webContents.isDestroyed()) prevView.webContents.stopFindInPage('clearSelection');
+    send('ui:find-close');
+  }
   // "Beim Wechseln der App": die verlassene App wird wieder gesperrt
   const prev = prevId && prevId !== id ? findApp(prevId) : null;
   let justLocked = false;
@@ -1522,6 +1530,7 @@ const menuActions = {
   },
   language: (lang) => changeLanguage(lang),
   checkUpdate: () => checkForUpdates(true),
+  find: () => send('ui:open-find'),
   // Bild aus der App-Ansicht in die Zwischenablage - copyImageAt arbeitet wie
   // Chroma-Kontextmenue positionsbasiert im Renderer und holt auch eingebettete
   // und cross-origin Bilder, ohne dass die Seite etwas mitmachen muss.
@@ -1767,6 +1776,8 @@ function buildMenu() {
       label: t('menu.apps'),
       submenu: [
         { label: t('menu.reload'), accelerator: 'CmdOrCtrl+R', click: () => activeWc()?.reload() },
+        // Globaler Accelerator: greift auch wenn eine App-View den Fokus hat
+        { label: t('find.title'), accelerator: 'CmdOrCtrl+F', click: () => send('ui:open-find') },
         { type: 'separator' },
         { label: t('menu.nextApp'), accelerator: 'Ctrl+Tab', click: () => cycle(1) },
         { label: t('menu.prevApp'), accelerator: 'Ctrl+Shift+Tab', click: () => cycle(-1) },
@@ -2084,6 +2095,50 @@ ipcMain.handle('menu:state', () => ({
   hello: lockCfg.hello === true,
   canLock: Boolean(lockCfg.hash) || lockCfg.hello === true,
 }));
+
+/* ---------- Suchleiste (Strg+F, findInPage) ---------- */
+
+// found-in-page/did-navigate nur EINMAL pro WebContents haengen (WeakSet),
+// Resultate ausschliesslich von der AKTIVEN Ansicht weiterreichen - sonst
+// liefert eine im Hintergrund laufende App veraltete Zaehler.
+const findHooked = new WeakSet();
+function hookFindEvents(wc) {
+  if (!wc || findHooked.has(wc)) return;
+  findHooked.add(wc);
+  // Ergebnisse nur von der AKTIVEN Ansicht akzeptieren - ausser es ist die
+  // Shell selbst (leerer Zustand ohne App: contentWc() greift auf win.webContents)
+  const fromShell = () => Boolean(win && !win.isDestroyed() && wc === win.webContents);
+  wc.on('found-in-page', (_e, r) => {
+    if (!fromShell() && views.get(activeId)?.webContents !== wc) return;
+    send('ui:find-result', { current: r.activeMatchOrdinal, total: r.matches });
+  });
+  wc.on('did-navigate', () => {
+    // echte Navigation: Treffer sind weg - die Leiste wuerde sonst eine alte Zahl zeigen
+    if (!fromShell() && views.get(activeId)?.webContents !== wc) return;
+    send('ui:find-close');
+  });
+}
+
+// Suchbegriff auf der aktiven Ansicht suchen (leerer Begriff = Markierung loeschen)
+ipcMain.handle('find:page', (_e, term, opts) => {
+  const wc = contentWc();
+  if (!wc || wc.isDestroyed()) return false;
+  hookFindEvents(wc);
+  if (!term) {
+    wc.stopFindInPage('clearSelection');
+    return true;
+  }
+  wc.findInPage(String(term), {
+    forward: opts ? opts.forward !== false : true,
+    findNext: Boolean(opts && opts.findNext),
+  });
+  return true;
+});
+
+ipcMain.handle('find:stop', () => {
+  const wc = contentWc();
+  if (wc && !wc.isDestroyed()) wc.stopFindInPage('clearSelection');
+});
 
 // Bild der App-Ansicht: es liegt als eingefrorenes Bild unter dem Aufklappmenue,
 // waehrend die native Ansicht kurz abgehaengt ist. Ohne anhaengende Ansicht gibt

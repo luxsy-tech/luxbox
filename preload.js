@@ -59,6 +59,12 @@ contextBridge.exposeInMainWorld('api', {
   menuClick: (id, value, where) => ipcRenderer.invoke('menu:click', id, value, where),
   menuState: () => ipcRenderer.invoke('menu:state'),
   onContextMenu: (cb) => on('ui:context-menu', cb),
+  // Suchleiste (Strg+F): findInPage der aktiven App-Ansicht steuern
+  findPage: (term, opts) => ipcRenderer.invoke('find:page', term, opts),
+  findStop: () => ipcRenderer.invoke('find:stop'),
+  onOpenFind: (cb) => on('ui:open-find', cb),
+  onFindResult: (cb) => on('ui:find-result', cb),
+  onFindClose: (cb) => on('ui:find-close', cb),
   setBadge: (dataUrl, desc) => ipcRenderer.invoke('ui:badge', dataUrl, desc),
   dropToApp: (id, files) => ipcRenderer.invoke('apps:drop', id, files),
   getPathForFile: (file) => webUtils.getPathForFile(file),

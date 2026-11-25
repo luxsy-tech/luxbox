@@ -9,6 +9,19 @@
 </head>
 <body>
   <div class="menubar" id="menubar" role="menubar"></div>
+  <!-- Suchleiste (Strg+F): eigenstaendiges Element, NICHT in #menubar -
+       renderMenubar() raeumt die Leiste per replaceChildren aus. Fixed oben
+       rechts in der Menueleisten-Zeile: die App-View beginnt erst bei y=34px,
+       dieser Streifen bleibt immer Shell-DOM. z-index 35: ueber backdrop (20),
+       unter flyouts (50), tour (95) und lock (100). -->
+  <div id="findBar" class="find-bar" hidden>
+    <input id="findInput" type="search" autocomplete="off" spellcheck="false"
+           data-i18n-attr="placeholder:find.placeholder">
+    <span id="findCount" class="find-count" role="status"></span>
+    <button id="findPrev" type="button" class="find-btn" data-i18n-attr="aria-label:find.prev" aria-label="Vorheriger Treffer">▲</button>
+    <button id="findNext" type="button" class="find-btn" data-i18n-attr="aria-label:find.next" aria-label="Nächster Treffer">▼</button>
+    <button id="findClose" type="button" class="find-btn" data-i18n-attr="aria-label:find.close" aria-label="Suche schließen">×</button>
+  </div>
   <div id="backdrop" class="backdrop" hidden></div>
   <div class="stage">
   <nav class="rail" data-i18n-attr="aria-label:nav.apps">

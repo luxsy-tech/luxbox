@@ -266,6 +266,13 @@
   "info.openFolder": "Open configuration folder",
 
   "menu.checkUpdate": "Check for updates …",
+  "find.title": "Find",
+  "find.placeholder": "Find …",
+  "find.prev": "Previous match",
+  "find.next": "Next match",
+  "find.close": "Close search",
+  "keys.c.find": "Ctrl + F",
+  "keys.v.find": "Find in page",
   "update.none": "No newer update available.",
   "update.noneDetail": "Installed version is {version}.",
   "update.found": "Update available",

@@ -701,6 +701,7 @@ const MENUS = [
     labelKey: 'menu.apps',
     items: [
       { id: 'reload', labelKey: 'menu.reload' },
+      { id: 'find', labelKey: 'find.title' },
       { sep: true },
       { id: 'nextApp', labelKey: 'menu.nextApp' },
       { id: 'prevApp', labelKey: 'menu.prevApp' },
@@ -967,6 +968,64 @@ if (window.api.onContextMenu) {
   window.api.onContextMenu(({ x, y, flags, where, media }) => openContextMenu(x, y, flags, where, media));
 }
 
+/* ---------- Suchleiste (Strg+F, findInPage) ---------- */
+
+const findBar = $('findBar');
+const findInput = $('findInput');
+const findCount = $('findCount');
+
+// Leiste oeffnen (Menueeintrag oder globaler Accelerator CmdOrCtrl+F)
+function openFind() {
+  const wasHidden = findBar.hidden;
+  findBar.hidden = false;
+  if (wasHidden) {
+    findInput.focus();
+    findInput.select();   // vorhandenen Begriff markieren -> sofort ueberschreibbar
+  }
+}
+
+// Leiste schliessen; withStop loescht auch die Treffermarkierung in der App
+function closeFind(withStop) {
+  if (!findBar.hidden) {
+    findBar.hidden = true;
+    findInput.value = '';
+    findCount.textContent = '';
+  }
+  if (withStop) window.api.findStop();
+}
+
+// next=true: weiter-/zurueckblaettern (Enter/Buttons), sonst frische Suche (Tippen)
+function submitFind(next, forward) {
+  const term = findInput.value;
+  if (!term.trim()) {
+    findCount.textContent = '';
+    window.api.findStop();
+    return;
+  }
+  window.api.findPage(term, { findNext: Boolean(next), forward: forward !== false });
+}
+
+findInput.addEventListener('input', () => submitFind(false, true));  // Live-Suche wie Chrome
+findInput.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  submitFind(true, !e.shiftKey);   // Enter = naechster Treffer, Shift+Enter = vorheriger
+  // Escape bubblet zum document-Handler und schliesst die Leiste
+});
+$('findPrev').addEventListener('click', () => submitFind(true, false));
+$('findNext').addEventListener('click', () => submitFind(true, true));
+$('findClose').addEventListener('click', () => closeFind(true));
+
+if (window.api.onOpenFind) window.api.onOpenFind(openFind);
+// ui:find-close vom Hauptprozess (App-Wechsel/Navigation): NUR die UI schliessen -
+// die alte Ansicht hat der Hauptprozess selbst gestoppt, ein findStop wuerde
+// jetzt fälschlich die NEUE Ansicht leeren.
+if (window.api.onFindClose) window.api.onFindClose(() => closeFind(false));
+if (window.api.onFindResult) window.api.onFindResult(({ current, total }) => {
+  if (findBar.hidden) return;
+  findCount.textContent = `${current}/${total}`;
+});
+
 function toggleMenu(i) {
   if (openMenu === i) closeMenu();
   else {
@@ -982,6 +1041,7 @@ document.addEventListener('click', () => {
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (!$('tour').hidden) return closeTour();
+  if (!findBar.hidden) return closeFind(true);   // Escape in der Suchleiste
   closeMenu();
   closeGroupFlyout();
 });
@@ -993,6 +1053,7 @@ const KEYS_ROWS = [
   ['keys.c.apps', 'keys.v.apps'],
   ['keys.c.switch', 'keys.v.switch'],
   ['keys.c.reload', 'menu.reload'],
+  ['keys.c.find', 'keys.v.find'],
   ['keys.c.store', 'menu.installStorePage'],
   ['keys.c.autostart', 'menu.autostart'],
   ['keys.c.devtools', 'menu.devTools'],
